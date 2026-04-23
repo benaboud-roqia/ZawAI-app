@@ -15,8 +15,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { chatSupport, type ChatMessage } from "@/lib/api";
+import { PLAN_LABELS, supportMessageLimit } from "@/lib/entitlements";
 
 const QUICK_PROMPTS = [
   "Ma caméra ne s'ouvre pas, que faire ?",
@@ -35,6 +37,7 @@ export default function SupportScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,9 +45,18 @@ export default function SupportScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 24) : insets.top;
 
+  const limit = supportMessageLimit(user?.plan);
+  const userMsgCount = messages.filter((m) => m.role === "user").length;
+  const remaining = limit === Infinity ? Infinity : Math.max(0, limit - userMsgCount);
+  const limitReached = remaining === 0;
+
   const send = async (textInput?: string) => {
     const text = (textInput ?? input).trim();
     if (!text || loading) return;
+    if (limitReached) {
+      router.push("/premium");
+      return;
+    }
     setInput("");
     setError(null);
     const next: ChatMessage[] = [...messages, { role: "user", content: text }];
@@ -98,7 +110,9 @@ export default function SupportScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
               <View style={[styles.dot, { backgroundColor: "#22C55E" }]} />
               <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: "Inter_500Medium" }}>
-                En ligne · Propulsé par Claude
+                {limit === Infinity
+                  ? "Illimité · Studio"
+                  : `${remaining}/${limit} messages restants`}
               </Text>
             </View>
           </View>
@@ -151,6 +165,34 @@ export default function SupportScreen() {
           </Text>
         ) : null}
 
+        {limitReached ? (
+          <Pressable
+            onPress={() => router.push("/premium")}
+            style={{ marginTop: 8 }}
+          >
+            <LinearGradient
+              colors={["#A855F7", "#C026D3"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.upgradeBanner}
+            >
+              <View style={styles.upgradeIcon}>
+                <Feather name="lock" size={16} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 }}>
+                  Limite atteinte
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.9)", fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
+                  Plan {PLAN_LABELS[user?.plan ?? "free"]} : {limit} messages.
+                  Passez Pro ou Studio pour continuer.
+                </Text>
+              </View>
+              <Feather name="arrow-right" size={18} color="#fff" />
+            </LinearGradient>
+          </Pressable>
+        ) : null}
+
         {messages.length <= 1 && !loading ? (
           <View style={{ marginTop: 8, gap: 8 }}>
             <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 12, letterSpacing: 0.4 }}>
@@ -199,25 +241,26 @@ export default function SupportScreen() {
             value={input}
             onChangeText={setInput}
             onSubmitEditing={() => send()}
-            placeholder="Décrivez votre problème…"
+            placeholder={limitReached ? "Limite atteinte — passez Premium" : "Décrivez votre problème…"}
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, { color: colors.foreground }]}
             multiline
             blurOnSubmit
             returnKeyType="send"
+            editable={!limitReached}
           />
           <Pressable
             onPress={() => send()}
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || limitReached}
             style={[
               styles.sendBtn,
               {
-                opacity: loading || !input.trim() ? 0.45 : 1,
+                opacity: loading || !input.trim() || limitReached ? 0.45 : 1,
               },
             ]}
           >
             <LinearGradient colors={["#A855F7", "#C026D3"]} style={StyleSheet.absoluteFill} />
-            <Feather name="send" size={16} color="#fff" />
+            <Feather name={limitReached ? "lock" : "send"} size={16} color="#fff" />
           </Pressable>
         </View>
       </View>
@@ -301,5 +344,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+  },
+  upgradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+  },
+  upgradeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

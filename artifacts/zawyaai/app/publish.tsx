@@ -2,7 +2,8 @@ import { Feather, FontAwesome, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { CinematicImage } from "@/components/CinematicImage";
-import { LUTS, type Lut } from "@/constants/luts";
+import { LUTS, canUseLut, type Lut } from "@/constants/luts";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -56,6 +57,8 @@ export default function PublishScreen() {
   const router = useRouter();
   const { uri } = useLocalSearchParams<{ uri?: string }>();
   const { add: addToHistory } = useHistory();
+  const { user } = useAuth();
+  const userPlan = user?.plan;
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 24) : insets.top;
 
   const [selected, setSelected] = useState<string[]>(["instagram", "tiktok"]);
@@ -82,12 +85,23 @@ export default function PublishScreen() {
     setAnalysingLut(true);
     setAiSuggestedLut(null);
     setTimeout(() => {
-      const candidates = LUTS.filter((l) => l.id !== "original");
-      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const candidates = LUTS.filter(
+        (l) => l.id !== "original" && canUseLut(l, userPlan),
+      );
+      const pool = candidates.length > 0 ? candidates : LUTS.filter((l) => l.id !== "original");
+      const pick = pool[Math.floor(Math.random() * pool.length)];
       setLutId(pick.id);
       setAiSuggestedLut(pick.id);
       setAnalysingLut(false);
     }, 1400);
+  };
+
+  const onPickLut = (l: Lut) => {
+    if (!canUseLut(l, userPlan)) {
+      router.push("/premium");
+      return;
+    }
+    setLutId(l.id);
   };
 
   const toggle = (id: string) =>
@@ -264,8 +278,9 @@ export default function PublishScreen() {
           {LUTS.map((l) => {
             const active = lutId === l.id;
             const suggested = aiSuggestedLut === l.id;
+            const locked = !canUseLut(l, userPlan);
             return (
-              <Pressable key={l.id} onPress={() => setLutId(l.id)}>
+              <Pressable key={l.id} onPress={() => onPickLut(l)}>
                 <View
                   style={[
                     styles.lutThumb,
@@ -290,7 +305,17 @@ export default function PublishScreen() {
                       />
                     }
                   />
-                  {suggested ? (
+                  {locked ? (
+                    <View style={styles.lockedOverlay} pointerEvents="none">
+                      <View style={[styles.lockBadge, { backgroundColor: l.tier === "studio" ? colors.accent : colors.primary }]}>
+                        <Feather name="lock" size={10} color="#fff" />
+                        <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.4 }}>
+                          {l.tier === "studio" ? "STUDIO" : "PRO"}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  {suggested && !locked ? (
                     <View style={[styles.suggestedBadge, { backgroundColor: colors.accent }]}>
                       <Feather name="zap" size={9} color="#fff" />
                     </View>
@@ -299,7 +324,11 @@ export default function PublishScreen() {
                 <Text
                   style={{
                     marginTop: 6,
-                    color: active ? colors.primary : colors.foreground,
+                    color: locked
+                      ? colors.mutedForeground
+                      : active
+                        ? colors.primary
+                        : colors.foreground,
                     fontFamily: "Inter_600SemiBold",
                     fontSize: 11,
                     textAlign: "center",
@@ -605,6 +634,20 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+  },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   previewBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
   sectionTitle: {
