@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
+import { generateCaptions, type GeneratedCaption } from "@/lib/api";
 
 type Platform = {
   id: string;
@@ -62,6 +64,10 @@ export default function PublishScreen() {
   ]);
   const [autoPublish, setAutoPublish] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiResults, setAiResults] = useState<GeneratedCaption[]>([]);
+  const [activeAiPlatform, setActiveAiPlatform] = useState<string | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
 
   const toggle = (id: string) =>
     setSelected((s) =>
@@ -72,6 +78,48 @@ export default function PublishScreen() {
     setHashtags((arr) =>
       arr.includes(h) ? arr.filter((x) => x !== h) : [...arr, h],
     );
+
+  const onGenerate = async () => {
+    if (selected.length === 0) {
+      setGenError("Sélectionnez au moins une plateforme.");
+      return;
+    }
+    setGenError(null);
+    setGenerating(true);
+    try {
+      const results = await generateCaptions({
+        platforms: selected,
+        topic: caption || "Capture cinématographique avec ZawyaAI",
+        language: "fr",
+        tone: "inspirant et premium",
+      });
+      if (results.length === 0) {
+        setGenError("Aucun résultat. Réessayez.");
+        setGenerating(false);
+        return;
+      }
+      setAiResults(results);
+      const first = results[0];
+      setActiveAiPlatform(first.platform);
+      setCaption(first.caption);
+      setHashtags(first.hashtags ?? []);
+    } catch (e) {
+      const err = e as Error;
+      setGenError(err.message ?? "Génération échouée");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const applyAiPlatform = (platform: string) => {
+    const found = aiResults.find(
+      (r) => r.platform.toLowerCase() === platform.toLowerCase(),
+    );
+    if (!found) return;
+    setActiveAiPlatform(found.platform);
+    setCaption(found.caption);
+    setHashtags(found.hashtags ?? []);
+  };
 
   const onPublish = async () => {
     if (selected.length === 0) {
@@ -223,17 +271,64 @@ export default function PublishScreen() {
             style={[styles.captionInput, { color: colors.foreground }]}
           />
           <View style={styles.captionFooter}>
-            <Pressable style={styles.captionAction}>
-              <Feather name="zap" size={13} color={colors.primary} />
+            <Pressable
+              onPress={onGenerate}
+              disabled={generating}
+              style={[styles.captionAction, { opacity: generating ? 0.6 : 1 }]}
+            >
+              {generating ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Feather name="zap" size={13} color={colors.primary} />
+              )}
               <Text style={{ color: colors.primary, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
-                Générer par IA
+                {generating ? "Génération…" : "Générer par IA"}
               </Text>
             </Pressable>
             <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>
               {caption.length} / 2200
             </Text>
           </View>
+          {genError ? (
+            <Text style={{ color: colors.destructive, fontSize: 12, marginTop: 8 }}>
+              {genError}
+            </Text>
+          ) : null}
         </View>
+
+        {aiResults.length > 0 ? (
+          <View style={{ marginTop: 14 }}>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: "Inter_600SemiBold", marginBottom: 8, letterSpacing: 0.4 }}>
+              VARIANTES IA PAR PLATEFORME
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {aiResults.map((r) => {
+                const meta = PLATFORMS.find(
+                  (p) => p.id.toLowerCase() === r.platform.toLowerCase(),
+                );
+                const active = activeAiPlatform === r.platform;
+                return (
+                  <Pressable
+                    key={r.platform}
+                    onPress={() => applyAiPlatform(r.platform)}
+                    style={[
+                      styles.aiChip,
+                      {
+                        backgroundColor: active ? colors.primary : colors.card,
+                        borderColor: active ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    {meta ? renderIcon(meta, active ? "#fff" : colors.foreground) : null}
+                    <Text style={{ color: active ? "#fff" : colors.foreground, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
+                      {meta?.name ?? r.platform}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* Hashtags */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
@@ -415,6 +510,15 @@ const styles = StyleSheet.create({
   captionAction: { flexDirection: "row", alignItems: "center", gap: 6 },
   hashtagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   hashtag: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  aiChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
