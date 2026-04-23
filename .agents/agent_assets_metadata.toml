@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "tvQ1vmvZeAFGBXinCV9Pr"
+uri = "file://artifacts/zawyaai/assets/images/icon.png"
+type = "image"
+title = "zawyaai app icon"

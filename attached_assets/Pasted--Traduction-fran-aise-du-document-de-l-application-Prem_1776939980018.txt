@@ -1,0 +1,166 @@
+# Traduction française du document de l'application
+
+---
+
+## Première partie : Structure de l'application
+
+1. Choisir la plateforme (Instagram / TikTok / Snapchat…)
+2. Choisir le type de photo (Selfie / Portrait / Produit / Story…)
+3. Appuyer sur **Démarrer** → l'utilisateur entre directement dans la caméra intelligente
+4. Il est guidé tout au long de la prise de vue. À la fin, il a **3 choix** : Sauvegarder – Partager directement – Évaluer + Suggestions pour le futur
+
+---
+
+## Phase 1 : Avant la prise de vue
+
+### 1. Analyse de la plateforme
+
+| Plateforme | Dimensions | Ratio |
+|---|---|---|
+| Instagram Post | 1080×1350 | 4:5 |
+| Instagram Story | 1080×1920 | 9:16 |
+| TikTok | 1080×1920 | 9:16 |
+| Facebook Post normal | 630×1200 | — |
+| Facebook Portrait | 1080×1350 | 4:5 |
+
+> Dans l'application : le cadre est ajusté automatiquement (Overlay Grid)
+
+---
+
+### 2. Suggestions de cadrage (Smart Framing)
+
+**Selfie**
+- Angle : 15° – 25° vers le haut
+- Distance : 50–60 cm
+- Position du visage : tiers supérieur (Règle des tiers)
+- Corrections : *Levez légèrement l'appareil vers le haut / vers le bas / Visage trop proche / trop loin de la caméra*
+
+**Portrait professionnel**
+- Angle : 5° ou 15°
+- Objectif : zoom 2x – 3x
+- Cadrage : demi-corps ou ¾
+- Conseil : *Tournez légèrement le corps vers la droite pour améliorer la profondeur*
+
+**Photo de produit**
+- Angle : 45° ou vue du dessus (Top Shot 90°)
+- Fond : simple
+- Cadrage : produit au centre + espace de respiration 20%
+- Conseil : *Rapprochez-vous et réduisez l'espace autour du produit / Éloignez-vous…*
+
+**Story quotidienne**
+- Angle : naturel (0°)
+- Léger mouvement
+- Cadrage rapproché
+
+**Autres types de cadrage :**
+- High Angle : 15°–45°
+- Low Angle : 10°–30° (sous le niveau des yeux)
+- Dutch Angle : inclinaison 10°–25°
+- Eye Level : 0°
+
+---
+
+## Phase 2 : Pendant la prise de vue (Guidage IA en temps réel)
+
+### 1. Analyse de l'éclairage (Lighting Detection)
+
+Système d'éclairage à trois points (**Three-Point Lighting**) :
+
+| Type | Position |
+|---|---|
+| Key Light (lumière principale) | Frontale |
+| Fill Light (lumière de remplissage) | Latérale |
+| Rim Light (lumière de contour) | Arrière |
+
+- La lumière principale = **100%**
+- La lumière de remplissage = **50%** de la principale
+- La lumière de contour = **25%** de la principale
+- Angle de la lumière : **45°**
+
+| État | Seuil |
+|---|---|
+| Éclairage faible | < 200 Lux ou EV < 6 → affiché comme 30% à l'écran |
+| Éclairage correct | 30% – 70% |
+| Éclairage fort | > 80% (distinguer entre surexposition réelle et scène naturellement claire) |
+
+> Utilise **Histogramme + Luminosité**
+
+---
+
+### 2. Angle du visage / corps
+
+| Situation | Angle |
+|---|---|
+| Idéal | 10° – 25° |
+| Trop plat | 0° |
+| Exagéré | > 40° |
+
+Conseils : *Inclinez légèrement la tête vers la droite / la gauche / Levez le menton*
+
+---
+
+### 3. Stabilité
+- Si tremblement détecté : *Stabilisez votre main ou utilisez un trépied*
+
+### 4. Composition (Composition IA)
+- Visage hors centre ❌ → *Placez-vous sur l'un des côtés de l'image*
+- Trop d'espace vide ❌ → *Rapprochez-vous*
+
+### 5. Couleurs (Balance des blancs)
+
+| Situation | Conseil |
+|---|---|
+| Teinte jaune | *Changez l'éclairage / Ajoutez une source chaude* |
+
+---
+
+## Phase 3 : Après la prise de vue (Analyse IA post-shoot)
+
+### Système de notation intelligent (Score /100)
+
+| Élément | Poids |
+|---|---|
+| Éclairage | 30% |
+| Composition | 25% |
+| Mise au point | 25% |
+| Couleurs | 15% |
+| Stabilité | 10% |
+
+**Exemple de résultat :**
+> **Score : 78/100**
+> - Éclairage : Bon (mais dur)
+> - Composition : Excellent
+> - Mise au point : Moyen
+
+**Suggestions directes :**
+- *Utilisez un éclairage latéral plutôt que frontal*
+- *Réduisez légèrement l'exposition*
+
+---
+
+## Angles de prise de vue professionnels (en chiffres)
+
+| Angle | Valeur | Effet |
+|---|---|---|
+| High Angle | 15° – 45° | Apparence douce / plus jeune |
+| Eye Level | 0° | Très naturel |
+| Low Angle | -10° à -30° | Puissance et prestance |
+| Dutch Angle | Inclinaison 10°–25° | Effet dramatique |
+
+**Distances recommandées :**
+- Source lumineuse : 1 – 1,5 mètre
+- Angle de la lumière : 45°
+
+---
+
+## Principe clé des conseils
+
+> **Les conseils doivent être positifs et bienveillants** — On ne dit pas *"L'éclairage est mauvais"*, on dit *"Déplacez-vous d'un pas vers la droite en direction de la lumière"*
+
+---
+
+## Suggestions supplémentaires (si possible)
+
+- Ajouter une fonctionnalité permettant d'**analyser et évaluer des photos déjà prises** avec d'autres applications (pas uniquement Zawya)
+- Intégrer la **retouche et l'amélioration du contenu en temps réel** pendant la prise de vue
+- Intégrer un **AI Ghost Guide** : afficher une silhouette à l'écran que l'utilisateur peut imiter pour adopter la bonne pose
