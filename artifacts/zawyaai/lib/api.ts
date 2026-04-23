@@ -37,6 +37,58 @@ export async function generateTips(context: {
   return data.tips ?? [];
 }
 
+export type ScenarioShot = {
+  n: number;
+  duration: number;
+  shotType: string;
+  angle: string;
+  movement: string;
+  description: string;
+  transition: string;
+};
+
+export type Scenario = {
+  title: string;
+  hook: string;
+  totalDuration: number;
+  suggestedLut: string;
+  musicMood: string;
+  shots: ScenarioShot[];
+  tips: string[];
+};
+
+export async function generateScenario(input: {
+  niche: string;
+  topic?: string;
+  duration?: number;
+  platform?: string;
+}): Promise<Scenario> {
+  const res = await fetch(apiUrl("/scenarios/generate"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Scenario échoué (${res.status})`);
+  return (await res.json()) as Scenario;
+}
+
+export type OptimalSlot = { time: string; score: number; reason: string };
+export type OptimalPlatform = { id: string; name: string; slots: OptimalSlot[] };
+
+export async function getOptimalTimes(input: {
+  platforms: string[];
+  timezone?: string;
+}): Promise<OptimalPlatform[]> {
+  const res = await fetch(apiUrl("/schedule/optimal-times"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Horaires échoués (${res.status})`);
+  const data = (await res.json()) as { platforms?: OptimalPlatform[] };
+  return data.platforms ?? [];
+}
+
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export async function chatSupport(messages: ChatMessage[]): Promise<string> {

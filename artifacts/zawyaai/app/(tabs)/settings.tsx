@@ -142,7 +142,27 @@ export default function SettingsScreen() {
             onPress={() => router.push("/history")}
           />
           <Divider colors={colors} />
-          <NavRow icon="bookmark" label="Brouillons" colors={colors} />
+          <NavRow
+            icon="bar-chart-2"
+            label="Analytics"
+            colors={colors}
+            onPress={() => router.push("/analytics")}
+          />
+          <Divider colors={colors} />
+          <NavRow
+            icon="calendar"
+            label="Calendrier"
+            colors={colors}
+            onPress={() => router.push("/schedule")}
+          />
+          <Divider colors={colors} />
+          <NavRow
+            icon="film"
+            label="Scénarios IA"
+            colors={colors}
+            onPress={() => router.push("/scenarios")}
+            highlight
+          />
         </Section>
 
         <Section title="Compte" colors={colors}>
