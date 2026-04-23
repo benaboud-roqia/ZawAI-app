@@ -1,6 +1,8 @@
 import { Feather, FontAwesome, FontAwesome5 } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+
+import { CinematicImage } from "@/components/CinematicImage";
+import { LUTS, type Lut } from "@/constants/luts";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -68,6 +70,23 @@ export default function PublishScreen() {
   const [aiResults, setAiResults] = useState<GeneratedCaption[]>([]);
   const [activeAiPlatform, setActiveAiPlatform] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+  const [lutId, setLutId] = useState<string>("teal-orange");
+  const [analysingLut, setAnalysingLut] = useState(false);
+  const [aiSuggestedLut, setAiSuggestedLut] = useState<string | null>(null);
+
+  const activeLut: Lut = LUTS.find((l) => l.id === lutId) ?? LUTS[0];
+
+  const onAutoLut = () => {
+    setAnalysingLut(true);
+    setAiSuggestedLut(null);
+    setTimeout(() => {
+      const candidates = LUTS.filter((l) => l.id !== "original");
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      setLutId(pick.id);
+      setAiSuggestedLut(pick.id);
+      setAnalysingLut(false);
+    }, 1400);
+  };
 
   const toggle = (id: string) =>
     setSelected((s) =>
@@ -181,26 +200,110 @@ export default function PublishScreen() {
           L'agent diffuse sur toutes vos plateformes en un geste.
         </Text>
 
-        {/* Preview */}
-        <View
-          style={[
-            styles.preview,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          {uri ? (
-            <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          ) : (
+        {/* Preview with cinematic LUT */}
+        <CinematicImage
+          uri={uri}
+          lut={activeLut}
+          style={{
+            ...styles.preview,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          }}
+          fallback={
             <LinearGradient
               colors={["#1a0e2e", "#2A1B4A"]}
               style={StyleSheet.absoluteFill}
             />
-          )}
+          }
+        />
+        <View style={styles.previewBadgeWrap} pointerEvents="none">
           <View style={styles.previewBadge}>
             <Feather name="check-circle" size={12} color="#22C55E" />
-            <Text style={styles.previewBadgeText}>Étalonné · Score 86</Text>
+            <Text style={styles.previewBadgeText}>
+              {activeLut.id === "original"
+                ? "Original"
+                : `Étalonné · ${activeLut.name}`}
+            </Text>
           </View>
         </View>
+
+        {/* Cinematic LUTs */}
+        <View style={styles.lutHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>
+            Étalonnage cinéma
+          </Text>
+          <Pressable
+            onPress={onAutoLut}
+            disabled={analysingLut}
+            style={[styles.autoLutBtn, { borderColor: colors.primary }]}
+          >
+            {analysingLut ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather name="zap" size={13} color={colors.primary} />
+            )}
+            <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+              {analysingLut ? "Analyse…" : "Auto IA"}
+            </Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
+        >
+          {LUTS.map((l) => {
+            const active = lutId === l.id;
+            const suggested = aiSuggestedLut === l.id;
+            return (
+              <Pressable key={l.id} onPress={() => setLutId(l.id)}>
+                <View
+                  style={[
+                    styles.lutThumb,
+                    {
+                      borderColor: active
+                        ? colors.primary
+                        : suggested
+                          ? colors.accent
+                          : colors.border,
+                      borderWidth: active || suggested ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <CinematicImage
+                    uri={uri}
+                    lut={l}
+                    style={StyleSheet.absoluteFillObject}
+                    fallback={
+                      <LinearGradient
+                        colors={["#1a0e2e", "#2A1B4A"]}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    }
+                  />
+                  {suggested ? (
+                    <View style={[styles.suggestedBadge, { backgroundColor: colors.accent }]}>
+                      <Feather name="zap" size={9} color="#fff" />
+                    </View>
+                  ) : null}
+                </View>
+                <Text
+                  style={{
+                    marginTop: 6,
+                    color: active ? colors.primary : colors.foreground,
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 11,
+                    textAlign: "center",
+                    width: 84,
+                  }}
+                  numberOfLines={1}
+                >
+                  {l.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
         {/* Platforms */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
@@ -440,23 +543,59 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 8, fontSize: 14, fontFamily: "Inter_400Regular" },
   preview: {
     marginTop: 20,
-    height: 220,
+    height: 240,
     borderRadius: 18,
     borderWidth: 1,
     overflow: "hidden",
     position: "relative",
   },
+  previewBadgeWrap: {
+    marginTop: -36,
+    marginLeft: 12,
+    marginBottom: 12,
+    alignSelf: "flex-start",
+  },
   previewBadge: {
-    position: "absolute",
-    top: 12,
-    left: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(0,0,0,0.65)",
     borderRadius: 999,
+  },
+  lutHeaderRow: {
+    marginTop: 14,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  autoLutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  lutThumb: {
+    width: 84,
+    height: 84,
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+  },
+  suggestedBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
   },
   previewBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
   sectionTitle: {
