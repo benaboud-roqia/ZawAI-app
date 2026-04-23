@@ -14,6 +14,22 @@ export type GeneratedCaption = {
   hashtags: string[];
 };
 
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+export async function chatSupport(messages: ChatMessage[]): Promise<string> {
+  const res = await fetch(apiUrl("/support/chat"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Chat échoué (${res.status}) ${text}`);
+  }
+  const data = (await res.json()) as { reply?: string };
+  return data.reply ?? "";
+}
+
 export async function generateCaptions(input: {
   platforms: string[];
   topic?: string;

@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { HistoryProvider } from "@/contexts/HistoryContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -53,6 +54,14 @@ function RootLayoutNav() {
         name="publish"
         options={{ presentation: "modal", headerShown: false }}
       />
+      <Stack.Screen
+        name="history"
+        options={{ presentation: "modal", headerShown: false }}
+      />
+      <Stack.Screen
+        name="support"
+        options={{ presentation: "modal", headerShown: false }}
+      />
     </Stack>
   );
 }
@@ -80,12 +89,14 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0612" }}>
             <KeyboardProvider>
               <AuthProvider>
-                <View style={{ flex: 1, backgroundColor: "#0A0612" }}>
-                  <StatusBar style="light" />
-                  <AuthGate>
-                    <RootLayoutNav />
-                  </AuthGate>
-                </View>
+                <HistoryProvider>
+                  <View style={{ flex: 1, backgroundColor: "#0A0612" }}>
+                    <StatusBar style="light" />
+                    <AuthGate>
+                      <RootLayoutNav />
+                    </AuthGate>
+                  </View>
+                </HistoryProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

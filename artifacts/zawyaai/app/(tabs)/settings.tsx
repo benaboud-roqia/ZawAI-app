@@ -134,6 +134,17 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        <Section title="Mon contenu" colors={colors}>
+          <NavRow
+            icon="image"
+            label="Mes publications"
+            colors={colors}
+            onPress={() => router.push("/history")}
+          />
+          <Divider colors={colors} />
+          <NavRow icon="bookmark" label="Brouillons" colors={colors} />
+        </Section>
+
         <Section title="Compte" colors={colors}>
           <NavRow icon="user" label="Profil" colors={colors} />
           <Divider colors={colors} />
@@ -143,9 +154,15 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="Support" colors={colors}>
-          <NavRow icon="help-circle" label="Centre d'aide" colors={colors} />
+          <NavRow
+            icon="message-circle"
+            label="Assistant IA · Zawya"
+            colors={colors}
+            onPress={() => router.push("/support")}
+            highlight
+          />
           <Divider colors={colors} />
-          <NavRow icon="message-square" label="Contacter ZawyaAI" colors={colors} />
+          <NavRow icon="help-circle" label="Centre d'aide" colors={colors} />
           <Divider colors={colors} />
           <NavRow icon="file-text" label="Conditions" colors={colors} />
         </Section>
@@ -218,15 +235,34 @@ function ToggleRow({ icon, label, value, onChange, colors }: any) {
   );
 }
 
-function NavRow({ icon, label, colors }: any) {
+function NavRow({ icon, label, colors, onPress, highlight }: any) {
   return (
-    <Pressable style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}>
-      <View style={[styles.rowIcon, { backgroundColor: "rgba(168,85,247,0.15)" }]}>
-        <Feather name={icon} size={15} color={colors.primary} />
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      <View
+        style={[
+          styles.rowIcon,
+          {
+            backgroundColor: highlight
+              ? colors.primary
+              : "rgba(168,85,247,0.15)",
+          },
+        ]}
+      >
+        <Feather name={icon} size={15} color={highlight ? "#fff" : colors.primary} />
       </View>
       <Text style={{ flex: 1, color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 15 }}>
         {label}
       </Text>
+      {highlight ? (
+        <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: colors.accent, borderRadius: 6, marginRight: 6 }}>
+          <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.4 }}>
+            NOUVEAU
+          </Text>
+        </View>
+      ) : null}
       <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
     </Pressable>
   );

@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { useHistory } from "@/contexts/HistoryContext";
 import { useColors } from "@/hooks/useColors";
 import { generateCaptions, type GeneratedCaption } from "@/lib/api";
 
@@ -54,6 +55,7 @@ export default function PublishScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { uri } = useLocalSearchParams<{ uri?: string }>();
+  const { add: addToHistory } = useHistory();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 24) : insets.top;
 
   const [selected, setSelected] = useState<string[]>(["instagram", "tiktok"]);
@@ -147,7 +149,14 @@ export default function PublishScreen() {
       return;
     }
     setPublishing(true);
-    setTimeout(() => {
+    setTimeout(async () => {
+      await addToHistory({
+        uri: uri ?? undefined,
+        lut: lutId,
+        platforms: selected,
+        caption,
+        hashtags,
+      });
       setPublishing(false);
       const names = selected
         .map((id) => PLATFORMS.find((p) => p.id === id)?.name)
@@ -158,7 +167,7 @@ export default function PublishScreen() {
       } else {
         Alert.alert(
           "Publication lancée",
-          `Votre contenu est en cours de diffusion sur : ${names}.`,
+          `Votre contenu est en cours de diffusion sur : ${names}. Retrouvez-le dans Mes publications.`,
           [{ text: "OK", onPress: () => router.back() }],
         );
       }
