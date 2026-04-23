@@ -150,7 +150,12 @@ export default function SettingsScreen() {
           <Divider colors={colors} />
           <NavRow icon="shield" label="Confidentialité" colors={colors} />
           <Divider colors={colors} />
-          <NavRow icon="bell" label="Notifications" colors={colors} />
+          <NavRow
+            icon="bell"
+            label="Notifications"
+            colors={colors}
+            onPress={() => router.push("/notifications")}
+          />
         </Section>
 
         <Section title="Support" colors={colors}>

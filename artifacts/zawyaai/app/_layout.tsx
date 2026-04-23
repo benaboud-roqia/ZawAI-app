@@ -62,6 +62,10 @@ function RootLayoutNav() {
         name="support"
         options={{ presentation: "modal", headerShown: false }}
       />
+      <Stack.Screen
+        name="notifications"
+        options={{ presentation: "modal", headerShown: false }}
+      />
     </Stack>
   );
 }
