@@ -1,6 +1,8 @@
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -11,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
 
 const SHOTS = [
@@ -36,13 +39,73 @@ const ANGLES = [
 export default function CameraScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [shot, setShot] = useState("medium");
   const [angle, setAngle] = useState("eye");
   const [iso, setIso] = useState(400);
   const [shutter, setShutter] = useState("1/120");
   const [wb, setWb] = useState(5600);
   const [grid, setGrid] = useState(true);
+  const [facing, setFacing] = useState<"back" | "front">("back");
+  const [permission, requestPermission] = useCameraPermissions();
+  const [capturing, setCapturing] = useState(false);
+  const [lastPhoto, setLastPhoto] = useState<string | null>(null);
+  const cameraRef = useRef<CameraView>(null);
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
+
+  const takePhoto = async () => {
+    if (!cameraRef.current || capturing) return;
+    setCapturing(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.9,
+        skipProcessing: false,
+      });
+      if (photo?.uri) {
+        setLastPhoto(photo.uri);
+        router.push({ pathname: "/publish", params: { uri: photo.uri } });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const flipCamera = () => setFacing((f) => (f === "back" ? "front" : "back"));
+
+  const renderViewfinder = () => {
+    if (!permission) {
+      return (
+        <View style={styles.permissionWrap}>
+          <Text style={{ color: "#fff" }}>Initialisation…</Text>
+        </View>
+      );
+    }
+    if (!permission.granted) {
+      return (
+        <View style={styles.permissionWrap}>
+          <Feather name="camera-off" size={32} color="#fff" />
+          <Text style={[styles.permTitle]}>Activer la caméra</Text>
+          <Text style={[styles.permDesc]}>
+            ZawyaAI a besoin d'accéder à votre caméra pour la composition en direct.
+          </Text>
+          <PrimaryButton
+            label="Autoriser la caméra"
+            onPress={requestPermission}
+            style={{ marginTop: 18, paddingHorizontal: 28 }}
+          />
+        </View>
+      );
+    }
+    return (
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        facing={facing}
+      />
+    );
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -63,6 +126,15 @@ export default function CameraScreen() {
             </Text>
           </View>
           <Pressable
+            onPress={flipCamera}
+            style={[
+              styles.iconBtn,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="refresh-cw" size={18} color={colors.foreground} />
+          </Pressable>
+          <Pressable
             onPress={() => setGrid(!grid)}
             style={[
               styles.iconBtn,
@@ -80,20 +152,17 @@ export default function CameraScreen() {
           </Pressable>
         </View>
 
-        {/* Viewfinder mockup */}
+        {/* Viewfinder */}
         <View
           style={[
             styles.viewfinder,
             { borderColor: colors.border, backgroundColor: "#000" },
           ]}
         >
-          <LinearGradient
-            colors={["#1a0e2e", "#0A0612", "#1a0e2e"]}
-            style={StyleSheet.absoluteFill}
-          />
+          {renderViewfinder()}
 
           {/* Grid overlay */}
-          {grid ? (
+          {grid && permission?.granted ? (
             <>
               <View style={[styles.gridLine, { left: "33.3%", top: 0, bottom: 0, width: 1 }]} />
               <View style={[styles.gridLine, { left: "66.6%", top: 0, bottom: 0, width: 1 }]} />
@@ -103,46 +172,68 @@ export default function CameraScreen() {
           ) : null}
 
           {/* Top HUD */}
-          <View style={styles.hudTop}>
-            <View style={styles.hudPill}>
-              <View style={[styles.dot, { backgroundColor: "#22C55E" }]} />
-              <Text style={styles.hudText}>IA active</Text>
-            </View>
-            <View style={styles.hudPill}>
-              <Text style={styles.hudText}>9:16 · 4K</Text>
-            </View>
-          </View>
+          {permission?.granted ? (
+            <>
+              <View style={styles.hudTop} pointerEvents="none">
+                <View style={styles.hudPill}>
+                  <View style={[styles.dot, { backgroundColor: "#22C55E" }]} />
+                  <Text style={styles.hudText}>IA active</Text>
+                </View>
+                <View style={styles.hudPill}>
+                  <Text style={styles.hudText}>9:16 · 4K</Text>
+                </View>
+              </View>
 
-          {/* Focus reticle */}
-          <View style={styles.reticle}>
-            <View style={styles.reticleInner} />
-          </View>
+              {/* Focus reticle */}
+              <View style={styles.reticle} pointerEvents="none">
+                <View style={styles.reticleInner} />
+              </View>
 
-          {/* Bottom HUD */}
-          <View style={styles.hudBottom}>
-            <View style={styles.hudPill}>
-              <Feather name="sun" size={12} color="#F59E0B" />
-              <Text style={styles.hudText}>Lumière 72%</Text>
-            </View>
-            <View style={styles.hudPill}>
-              <Feather name="check-circle" size={12} color="#22C55E" />
-              <Text style={styles.hudText}>Cadrage OK</Text>
-            </View>
-            <View style={styles.hudPill}>
-              <Feather name="zap" size={12} color="#A855F7" />
-              <Text style={styles.hudText}>Score 86</Text>
-            </View>
-          </View>
+              {/* Bottom HUD */}
+              <View style={styles.hudBottom} pointerEvents="none">
+                <View style={styles.hudPill}>
+                  <Feather name="sun" size={12} color="#F59E0B" />
+                  <Text style={styles.hudText}>Lumière 72%</Text>
+                </View>
+                <View style={styles.hudPill}>
+                  <Feather name="check-circle" size={12} color="#22C55E" />
+                  <Text style={styles.hudText}>Cadrage OK</Text>
+                </View>
+                <View style={styles.hudPill}>
+                  <Feather name="zap" size={12} color="#A855F7" />
+                  <Text style={styles.hudText}>Score 86</Text>
+                </View>
+              </View>
 
-          {/* Capture button */}
-          <View style={styles.captureWrap}>
-            <Pressable style={styles.captureOuter}>
-              <LinearGradient
-                colors={["#A855F7", "#C026D3"]}
-                style={styles.captureInner}
-              />
-            </Pressable>
-          </View>
+              {/* Capture button */}
+              <View style={styles.captureWrap}>
+                <Pressable
+                  onPress={takePhoto}
+                  disabled={capturing}
+                  style={[styles.captureOuter, { opacity: capturing ? 0.5 : 1 }]}
+                >
+                  <LinearGradient
+                    colors={["#A855F7", "#C026D3"]}
+                    style={styles.captureInner}
+                  />
+                </Pressable>
+              </View>
+
+              {/* Last photo thumbnail / publish shortcut */}
+              {lastPhoto ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({ pathname: "/publish", params: { uri: lastPhoto } })
+                  }
+                  style={styles.lastThumb}
+                >
+                  <View style={styles.lastThumbInner}>
+                    <Feather name="send" size={14} color="#fff" />
+                  </View>
+                </Pressable>
+              ) : null}
+            </>
+          ) : null}
         </View>
 
         {/* Shot types */}
@@ -334,7 +425,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 16,
-    gap: 12,
+    gap: 10,
   },
   title: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
   subtitle: { marginTop: 4, fontSize: 14, fontFamily: "Inter_400Regular" },
@@ -353,6 +444,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
     position: "relative",
+  },
+  permissionWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 28,
+    backgroundColor: "#0A0612",
+  },
+  permTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+    marginTop: 14,
+    textAlign: "center",
+  },
+  permDesc: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 18,
   },
   gridLine: {
     position: "absolute",
@@ -424,6 +537,23 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   captureInner: { flex: 1, borderRadius: 999 },
+  lastThumb: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  lastThumbInner: {
+    flex: 1,
+    backgroundColor: "#A855F7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sectionTitle: {
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",

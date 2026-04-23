@@ -7,6 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "zawyaai",
     "newArchEnabled": true,
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ZawyaAI utilise la caméra pour la composition cinématographique en direct.",
+          "microphonePermission": "ZawyaAI utilise le micro pour l'assistant vocal et la vidéo.",
+          "recordAudioAndroid": true
+        }
+      ]
+    ],
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
