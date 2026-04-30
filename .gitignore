@@ -1,0 +1,11 @@
+# Secrets — ne jamais pousser sur GitHub
+.env
+.env.local
+.env.production
+
+# Build
+dist/
+node_modules/
+
+# Logs
+*.log
