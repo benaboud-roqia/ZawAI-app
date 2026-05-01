@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -87,7 +87,7 @@ export function PlanCard({ plan, current, onSelect }: Props) {
               color: current
                 ? "#fff"
                 : plan.highlight
-                  ? "#7C2BD9"
+                  ? "#7C3AED"
                   : colors.foreground,
             },
           ]}
@@ -102,7 +102,7 @@ export function PlanCard({ plan, current, onSelect }: Props) {
     return (
       <Pressable onPress={onSelect} disabled={current}>
         <LinearGradient
-          colors={["#A855F7", "#C026D3"]}
+          colors={["#4DC8E8", "#7C3AED"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.card, { borderRadius: colors.radius + 4 }]}

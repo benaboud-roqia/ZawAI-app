@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -100,7 +100,7 @@ export default function SupportScreen() {
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <LinearGradient colors={["#A855F7", "#C026D3"]} style={styles.assistantAvatar}>
+          <LinearGradient colors={["#4DC8E8", "#7C3AED"]} style={styles.assistantAvatar}>
             <Feather name="message-circle" size={18} color="#fff" />
           </LinearGradient>
           <View style={{ flex: 1 }}>
@@ -171,7 +171,7 @@ export default function SupportScreen() {
             style={{ marginTop: 8 }}
           >
             <LinearGradient
-              colors={["#A855F7", "#C026D3"]}
+              colors={["#4DC8E8", "#7C3AED"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.upgradeBanner}
@@ -259,7 +259,7 @@ export default function SupportScreen() {
               },
             ]}
           >
-            <LinearGradient colors={["#A855F7", "#C026D3"]} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={["#4DC8E8", "#7C3AED"]} style={StyleSheet.absoluteFill} />
             <Feather name={limitReached ? "lock" : "send"} size={16} color="#fff" />
           </Pressable>
         </View>

@@ -1,4 +1,4 @@
-export type LutTier = "free" | "pro" | "studio";
+﻿export type LutTier = "free" | "pro" | "studio";
 
 export type Lut = {
   id: string;
@@ -72,8 +72,8 @@ export const LUTS: Lut[] = [
     desc: "Néon violet et magenta",
     tier: "pro",
     layers: [
-      { color: "#7C2BD9", opacity: 0.28, blendMode: "overlay" },
-      { color: "#22D3EE", opacity: 0.16, blendMode: "soft-light" },
+      { color: "#7C3AED", opacity: 0.28, blendMode: "overlay" },
+      { color: "#7C3AED", opacity: 0.16, blendMode: "soft-light" },
     ],
     vignette: 0.45,
   },

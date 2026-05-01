@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import Anthropic from "@anthropic-ai/sdk";
 import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
@@ -58,7 +58,7 @@ Réponds UNIQUEMENT en JSON valide, sans markdown, sous cette forme exacte :
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-opus-4-5",
       max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });

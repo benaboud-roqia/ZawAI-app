@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { loginWithTikTok, type TikTokUser } from "@/lib/tiktokAuth";
 
 type User = {
   id: string;
@@ -14,6 +15,8 @@ type User = {
   email: string;
   plan: "free" | "pro" | "studio";
   platform?: string;
+  avatar?: string;
+  provider?: "email" | "tiktok" | "google";
 };
 
 type AuthContextValue = {
@@ -21,6 +24,7 @@ type AuthContextValue = {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
+  signInWithTikTok: () => Promise<void>;
   signOut: () => Promise<void>;
   setPlan: (plan: User["plan"]) => Promise<void>;
   setPlatform: (platform: string) => Promise<void>;
@@ -83,6 +87,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await persist(null);
   }, [persist]);
 
+  const signInWithTikTok = useCallback(async () => {
+    const tikTokUser: TikTokUser | null = await loginWithTikTok();
+    if (!tikTokUser) return; // annulé par l'utilisateur
+    const next: User = {
+      id: tikTokUser.open_id,
+      name: tikTokUser.display_name,
+      email: `${tikTokUser.open_id}@tiktok.zawyaai`,
+      plan: "free",
+      avatar: tikTokUser.avatar_url,
+      provider: "tiktok",
+    };
+    await persist(next);
+  }, [persist]);
+
   const setPlan = useCallback(
     async (plan: User["plan"]) => {
       if (!user) return;
@@ -100,8 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, signIn, signUp, signOut, setPlan, setPlatform }),
-    [user, loading, signIn, signUp, signOut, setPlan, setPlatform],
+    () => ({ user, loading, signIn, signUp, signInWithTikTok, signOut, setPlan, setPlatform }),
+    [user, loading, signIn, signUp, signInWithTikTok, signOut, setPlan, setPlatform],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

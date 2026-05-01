@@ -1,9 +1,13 @@
-import { Feather } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+﻿import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,596 +18,877 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { useColors } from "@/hooks/useColors";
+import { analyzeExposure } from "@/lib/ai/exposureAI";
+import { analyzeComposition } from "@/lib/ai/compositionAI";
+import { startStabilityMonitor, stopStabilityMonitor } from "@/lib/ai/stabilityAI";
+import { computeGlobalScore, type GlobalScore } from "@/lib/ai/scoreAI";
 
-const SHOTS = [
-  { id: "wide", label: "Plan général", icon: "image" },
-  { id: "full", label: "Plan d'ensemble", icon: "users" },
-  { id: "medium", label: "Plan moyen", icon: "user" },
-  { id: "american", label: "Plan américain", icon: "user" },
-  { id: "close", label: "Gros plan", icon: "smile" },
-  { id: "extreme", label: "Très gros plan", icon: "eye" },
-];
+// ─── Constants ────────────────────────────────────────────────────────────────
+const PRIMARY = "#4DC8E8";
+const ACCENT  = "#7C3AED";
+const BG      = "#0D0D0F";
 
-const ANGLES = [
-  { id: "eye", label: "Eye Level", value: "0°" },
-  { id: "high", label: "High", value: "+30°" },
-  { id: "low", label: "Low", value: "-25°" },
-  { id: "dutch", label: "Dutch", value: "15°" },
-  { id: "top", label: "Top Shot", value: "90°" },
-  { id: "over", label: "Over Shoulder", value: "—" },
-  { id: "pov", label: "POV", value: "—" },
-  { id: "worm", label: "Worm Eye", value: "-45°" },
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
+type CaptureMode = "photo" | "video";
 
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: "#DD2A7B",
+  tiktok:    "#FE2C55",
+  snapchat:  "#F4C800",
+  youtube:   "#FF0000",
+  facebook:  "#1877F2",
+  x:         "#1DA1F2",
+};
+
+const PLATFORM_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
+  instagram: "instagram",
+  tiktok:    "music",
+  snapchat:  "camera",
+  youtube:   "youtube",
+  facebook:  "facebook",
+  x:         "twitter",
+};
+
+const OCCASION_DATA: Record<string, { shot: string; angle: string; iso: string; speed: string; wb: string; tip: string; tip2: string }> = {
+  selfie:   { shot: "Plan poitrine",   angle: "High",      iso: "200",  speed: "1/120", wb: "6500K", tip: "Tiens le téléphone légèrement au-dessus des yeux.",          tip2: "Lumière naturelle face au sujet pour un rendu optimal." },
+  wedding:  { shot: "Plan moyen",      angle: "Eye Level", iso: "400",  speed: "1/80",  wb: "5600K", tip: "Lumière naturelle, fond épuré, cadre horizontal.",            tip2: "Utilise le mode portrait pour un bokeh naturel." },
+  mukbang:  { shot: "Plan américain",  angle: "High",      iso: "320",  speed: "1/100", wb: "5200K", tip: "Caméra à hauteur de table, éclairage face au sujet.",         tip2: "Éclairage chaud pour rendre la nourriture appétissante." },
+  travel:   { shot: "Plan large",      angle: "Eye Level", iso: "400",  speed: "1/125", wb: "5600K", tip: "Inclure le décor, règle des tiers pour l'horizon.",           tip2: "Heure dorée pour des couleurs chaudes et naturelles." },
+  cooking:  { shot: "Top Shot",        angle: "Top 90°",   iso: "200",  speed: "1/160", wb: "5500K", tip: "Caméra directement au-dessus, éclairage uniforme.",           tip2: "Éclairage uniforme au-dessus du sujet." },
+  portrait: { shot: "Gros plan",       angle: "Eye Level", iso: "200",  speed: "1/160", wb: "5600K", tip: "Focus sur les yeux, fond légèrement flou.",                   tip2: "Lumière latérale douce pour sculpter le visage." },
+  product:  { shot: "Très gros plan",  angle: "Top Shot",  iso: "100",  speed: "1/200", wb: "5500K", tip: "Fond neutre, éclairage latéral pour les textures.",           tip2: "Utilise un réflecteur pour éliminer les ombres dures." },
+  event:    { shot: "Plan d'ensemble", angle: "High",      iso: "800",  speed: "1/125", wb: "3200K", tip: "Capturer l'ambiance générale avant les détails.",             tip2: "Mode nuit ou ISO élevé pour les scènes sombres." },
+  sport:    { shot: "Plan large",      angle: "Low",       iso: "640",  speed: "1/250", wb: "5600K", tip: "Angle bas pour dynamiser l'action.",                          tip2: "Vitesse d'obturation rapide pour figer le mouvement." },
+  fashion:  { shot: "Plan pied",       angle: "Eye Level", iso: "200",  speed: "1/160", wb: "5600K", tip: "Fond épuré, lumière latérale pour les textures.",             tip2: "Cherche des lignes directrices dans l'environnement." },
+  nature:   { shot: "Plan large",      angle: "Eye Level", iso: "400",  speed: "1/125", wb: "5600K", tip: "Heure dorée, règle des tiers.",                               tip2: "Stabilise la caméra pour les longues expositions." },
+  business: { shot: "Plan moyen",      angle: "Eye Level", iso: "320",  speed: "1/100", wb: "5200K", tip: "Fond professionnel, éclairage uniforme.",                     tip2: "Tenue soignée et arrière-plan épuré pour la crédibilité." },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+// ─── IA Modal ─────────────────────────────────────────────────────────────────
+interface IaModalProps {
+  visible: boolean;
+  onClose: () => void;
+  aiInfo: { icon: string; text: string; color: string; bg: string; pct: string };
+  data: { angle: string; iso: string; speed: string; wb: string; tip: string; tip2: string };
+  insets: { bottom: number };
+  router: ReturnType<typeof useRouter>;
+}
+
+function IaModal({ visible, onClose, aiInfo, data, insets, router }: IaModalProps) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <Pressable style={s.modalBackdrop} onPress={onClose} />
+      <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+        {/* Handle bar */}
+        <View style={s.modalHandle} />
+
+        {/* Close button */}
+        <Pressable style={s.modalClose} onPress={onClose} hitSlop={12}>
+          <Feather name="x" size={20} color="#fff" />
+        </Pressable>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ gap: 16, paddingBottom: 8 }}
+        >
+          {/* AI guidance bar */}
+          <View style={[s.aiBar, { backgroundColor: aiInfo.bg, borderColor: aiInfo.color + "55" }]}>
+            <Text style={s.aiIcon}>{aiInfo.icon}</Text>
+            <Text style={[s.aiText, { color: aiInfo.color }]}>{aiInfo.text}</Text>
+            <View style={[s.aiPctBadge, { backgroundColor: aiInfo.color + "22" }]}>
+              <Text style={[s.aiPct, { color: aiInfo.color }]}>{aiInfo.pct}</Text>
+            </View>
+          </View>
+
+          {/* 4 param cards */}
+          <View style={s.paramRow}>
+            {(
+              [
+                { label: "Angle",   value: data.angle, icon: "maximize-2" as const },
+                { label: "ISO",     value: data.iso,   icon: "sun"        as const },
+                { label: "Vitesse", value: data.speed, icon: "zap"        as const },
+                { label: "WB",      value: data.wb,    icon: "droplet"    as const },
+              ] as const
+            ).map((p) => (
+              <View key={p.label} style={s.paramCard}>
+                <Feather name={p.icon} size={14} color={PRIMARY} style={{ marginBottom: 4 }} />
+                <Text style={s.paramValue}>{p.value}</Text>
+                <Text style={s.paramLabel}>{p.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* DOP tips */}
+          <Text style={s.sectionTitle}>Conseils du DOP IA</Text>
+          {[data.tip, data.tip2].map((tip, i) => (
+            <View key={i} style={s.tipRow}>
+              <LinearGradient
+                colors={[PRIMARY, ACCENT]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.tipIconWrap}
+              >
+                <Feather name={i === 0 ? "star" : "info"} size={13} color="#fff" />
+              </LinearGradient>
+              <Text style={s.tipText}>{tip}</Text>
+            </View>
+          ))}
+
+          {/* Change content type */}
+          <Pressable
+            onPress={() => { router.push("/(auth)/occasion-setup" as never); onClose(); }}
+            style={s.changeTypeBtn}
+          >
+            <Feather name="sliders" size={15} color={PRIMARY} />
+            <Text style={s.changeTypeText}>Changer le type de contenu</Text>
+            <Feather name="chevron-right" size={15} color={PRIMARY} />
+          </Pressable>
+
+          {/* Premium locked row */}
+          <Pressable
+            onPress={() => { router.push("/premium" as never); onClose(); }}
+            style={s.premiumRow}
+          >
+            <LinearGradient
+              colors={[PRIMARY + "22", ACCENT + "22"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={s.premiumGrad}
+            >
+              <Feather name="lock" size={15} color={ACCENT} />
+              <Text style={s.premiumText}>
+                Débloquer l'analyse IA avancée —{" "}
+                <Text style={{ color: ACCENT }}>Premium</Text>
+              </Text>
+              <Feather name="chevron-right" size={15} color={ACCENT} />
+            </LinearGradient>
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CameraScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [shot, setShot] = useState("medium");
-  const [angle, setAngle] = useState("eye");
-  const [iso, setIso] = useState(400);
-  const [shutter, setShutter] = useState("1/120");
-  const [wb, setWb] = useState(5600);
-  const [grid, setGrid] = useState(true);
-  const [facing, setFacing] = useState<"back" | "front">("back");
-  const [permission, requestPermission] = useCameraPermissions();
-  const [capturing, setCapturing] = useState(false);
-  const [lastPhoto, setLastPhoto] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+
+  // Permissions
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [, requestMicPermission] = useMicrophonePermissions();
+
+  // Camera state
   const cameraRef = useRef<CameraView>(null);
-  const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
+  const [facing, setFacing]       = useState<"front" | "back">("back");
+  const [showGrid, setShowGrid]   = useState(false);
+  const [mode, setMode]           = useState<CaptureMode>("photo");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recSeconds, setRecSeconds]   = useState(0);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const takePhoto = async () => {
-    if (!cameraRef.current || capturing) return;
-    setCapturing(true);
-    try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.9,
-        skipProcessing: false,
-      });
-      if (photo?.uri) {
-        setLastPhoto(photo.uri);
-        router.push({ pathname: "/publish", params: { uri: photo.uri } });
-      }
-    } catch {
-      // ignore
-    } finally {
-      setCapturing(false);
-    }
-  };
+  // IA modal
+  const [iaOpen, setIaOpen] = useState(false);
 
-  const flipCamera = () => setFacing((f) => (f === "back" ? "front" : "back"));
+  // IA réelle — score global calculé par les modules
+  const [platform, setPlatform] = useState("instagram");
+  const [occasion, setOccasion] = useState("selfie");
 
-  const renderViewfinder = () => {
-    if (!permission) {
-      return (
-        <View style={styles.permissionWrap}>
-          <Text style={{ color: "#fff" }}>Initialisation…</Text>
-        </View>
-      );
-    }
-    if (!permission.granted) {
-      return (
-        <View style={styles.permissionWrap}>
-          <Feather name="camera-off" size={32} color="#fff" />
-          <Text style={[styles.permTitle]}>Activer la caméra</Text>
-          <Text style={[styles.permDesc]}>
-            ZawyaAI a besoin d'accéder à votre caméra pour la composition en direct.
-          </Text>
-          <PrimaryButton
-            label="Autoriser la caméra"
-            onPress={requestPermission}
-            style={{ marginTop: 18, paddingHorizontal: 28 }}
-          />
-        </View>
-      );
-    }
-    return (
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing={facing}
-      />
+  const data      = OCCASION_DATA[occasion] ?? OCCASION_DATA.selfie;
+  const platColor = PLATFORM_COLORS[platform] ?? PRIMARY;
+  const platIcon  = (PLATFORM_ICONS[platform] ?? "camera") as keyof typeof Feather.glyphMap;
+
+  const [aiScore, setAiScore] = useState<GlobalScore>(() =>
+    computeGlobalScore(
+      analyzeExposure(),
+      { isStable: true, tiltX: 0, tiltY: 0, recommendation: "Stable", state: "good" },
+      analyzeComposition("selfie")
+    )
+  );
+
+  // IA pulse animation
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.3, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      ])
     );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  // Mettre à jour le score IA toutes les 3 secondes
+  useEffect(() => {
+    const update = () => {
+      const exposure = analyzeExposure();
+      const composition = analyzeComposition(occasion);
+      setAiScore(prev =>
+        computeGlobalScore(exposure, { isStable: prev.guidance.state !== "bad", tiltX: 0, tiltY: 0, recommendation: "", state: prev.guidance.state }, composition)
+      );
+    };
+    const id = setInterval(update, 3000);
+    return () => clearInterval(id);
+  }, [occasion]);
+
+  // Gyroscope — stabilité temps réel
+  useEffect(() => {
+    startStabilityMonitor((stability) => {
+      const exposure = analyzeExposure();
+      const composition = analyzeComposition(occasion);
+      setAiScore(computeGlobalScore(exposure, stability, composition));
+    });
+    return () => stopStabilityMonitor();
+  }, [occasion]);
+
+  const aiInfo = {
+    icon: aiScore.guidance.state === "good" ? "🟢" : aiScore.guidance.state === "medium" ? "🟡" : "🔴",
+    text: aiScore.guidance.text,
+    color: aiScore.guidance.color,
+    bg: aiScore.guidance.bg,
+    pct: `${aiScore.guidance.lightPct}%`,
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView
-        contentContainerStyle={{
-          paddingTop: topPad + 8,
-          paddingBottom: insets.bottom + 100,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.foreground }]}>
-              Caméra
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              Composition cinématographique
-            </Text>
-          </View>
-          <Pressable
-            onPress={flipCamera}
-            style={[
-              styles.iconBtn,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Feather name="refresh-cw" size={18} color={colors.foreground} />
-          </Pressable>
-          <Pressable
-            onPress={() => setGrid(!grid)}
-            style={[
-              styles.iconBtn,
-              {
-                backgroundColor: grid ? colors.primary : colors.card,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Feather
-              name="grid"
-              size={18}
-              color={grid ? "#fff" : colors.foreground}
-            />
-          </Pressable>
-        </View>
-
-        {/* Viewfinder */}
-        <View
-          style={[
-            styles.viewfinder,
-            { borderColor: colors.border, backgroundColor: "#000" },
-          ]}
-        >
-          {renderViewfinder()}
-
-          {/* Grid overlay */}
-          {grid && permission?.granted ? (
-            <>
-              <View style={[styles.gridLine, { left: "33.3%", top: 0, bottom: 0, width: 1 }]} />
-              <View style={[styles.gridLine, { left: "66.6%", top: 0, bottom: 0, width: 1 }]} />
-              <View style={[styles.gridLine, { top: "33.3%", left: 0, right: 0, height: 1 }]} />
-              <View style={[styles.gridLine, { top: "66.6%", left: 0, right: 0, height: 1 }]} />
-            </>
-          ) : null}
-
-          {/* Top HUD */}
-          {permission?.granted ? (
-            <>
-              <View style={styles.hudTop} pointerEvents="none">
-                <View style={styles.hudPill}>
-                  <View style={[styles.dot, { backgroundColor: "#22C55E" }]} />
-                  <Text style={styles.hudText}>IA active</Text>
-                </View>
-                <View style={styles.hudPill}>
-                  <Text style={styles.hudText}>9:16 · 4K</Text>
-                </View>
-              </View>
-
-              {/* Focus reticle */}
-              <View style={styles.reticle} pointerEvents="none">
-                <View style={styles.reticleInner} />
-              </View>
-
-              {/* Bottom HUD */}
-              <View style={styles.hudBottom} pointerEvents="none">
-                <View style={styles.hudPill}>
-                  <Feather name="sun" size={12} color="#F59E0B" />
-                  <Text style={styles.hudText}>Lumière 72%</Text>
-                </View>
-                <View style={styles.hudPill}>
-                  <Feather name="check-circle" size={12} color="#22C55E" />
-                  <Text style={styles.hudText}>Cadrage OK</Text>
-                </View>
-                <View style={styles.hudPill}>
-                  <Feather name="zap" size={12} color="#A855F7" />
-                  <Text style={styles.hudText}>Score 86</Text>
-                </View>
-              </View>
-
-              {/* Capture button */}
-              <View style={styles.captureWrap}>
-                <Pressable
-                  onPress={takePhoto}
-                  disabled={capturing}
-                  style={[styles.captureOuter, { opacity: capturing ? 0.5 : 1 }]}
-                >
-                  <LinearGradient
-                    colors={["#A855F7", "#C026D3"]}
-                    style={styles.captureInner}
-                  />
-                </Pressable>
-              </View>
-
-              {/* Last photo thumbnail / publish shortcut */}
-              {lastPhoto ? (
-                <Pressable
-                  onPress={() =>
-                    router.push({ pathname: "/publish", params: { uri: lastPhoto } })
-                  }
-                  style={styles.lastThumb}
-                >
-                  <View style={styles.lastThumbInner}>
-                    <Feather name="send" size={14} color="#fff" />
-                  </View>
-                </Pressable>
-              ) : null}
-            </>
-          ) : null}
-        </View>
-
-        {/* Shot types */}
-        <Section title="Plans cinématographiques">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-          >
-            {SHOTS.map((s) => {
-              const active = shot === s.id;
-              return (
-                <Pressable
-                  key={s.id}
-                  onPress={() => setShot(s.id)}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: active ? colors.primary : colors.card,
-                      borderColor: active ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <Feather
-                    name={s.icon as any}
-                    size={14}
-                    color={active ? "#fff" : colors.foreground}
-                  />
-                  <Text
-                    style={[
-                      styles.chipText,
-                      { color: active ? "#fff" : colors.foreground },
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </Section>
-
-        {/* Angles */}
-        <Section title="Angles professionnels (8)">
-          <View style={styles.grid}>
-            {ANGLES.map((a) => {
-              const active = angle === a.id;
-              return (
-                <Pressable
-                  key={a.id}
-                  onPress={() => setAngle(a.id)}
-                  style={[
-                    styles.angleCard,
-                    {
-                      backgroundColor: active ? colors.primary : colors.card,
-                      borderColor: active ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.angleLabel,
-                      { color: active ? "#fff" : colors.foreground },
-                    ]}
-                  >
-                    {a.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.angleValue,
-                      {
-                        color: active
-                          ? "rgba(255,255,255,0.85)"
-                          : colors.mutedForeground,
-                      },
-                    ]}
-                  >
-                    {a.value}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Section>
-
-        {/* Tech controls */}
-        <Section title="Contrôles techniques">
-          <View style={[styles.controlCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Control
-              icon="circle"
-              label="ISO"
-              value={String(iso)}
-              onMinus={() => setIso(Math.max(50, iso - 100))}
-              onPlus={() => setIso(Math.min(6400, iso + 100))}
-              colors={colors}
-            />
-            <Divider colors={colors} />
-            <Control
-              icon="clock"
-              label="Vitesse"
-              value={shutter}
-              onMinus={() => setShutter("1/60")}
-              onPlus={() => setShutter("1/250")}
-              colors={colors}
-            />
-            <Divider colors={colors} />
-            <Control
-              icon="thermometer"
-              label="Balance des blancs"
-              value={`${wb}K`}
-              onMinus={() => setWb(Math.max(2500, wb - 200))}
-              onPlus={() => setWb(Math.min(10000, wb + 200))}
-              colors={colors}
-            />
-          </View>
-        </Section>
-      </ScrollView>
-    </View>
+  // Reload when screen focused
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const p = await AsyncStorage.getItem("zawia.platform");
+        const o = await AsyncStorage.getItem("zawia.occasion");
+        if (p) setPlatform(p);
+        if (o) setOccasion(o);
+      })();
+    }, [])
   );
-}
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const colors = useColors();
-  return (
-    <View style={{ marginTop: 24 }}>
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{title}</Text>
-      {children}
-    </View>
-  );
-}
+  // Recording timer
+  useEffect(() => {
+    if (isRecording) {
+      recTimerRef.current = setInterval(() => setRecSeconds((n) => n + 1), 1000);
+    } else {
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      setRecSeconds(0);
+    }
+    return () => {
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+    };
+  }, [isRecording]);
 
-function Divider({ colors }: { colors: ReturnType<typeof useColors> }) {
-  return <View style={{ height: 1, backgroundColor: colors.border }} />;
-}
+  // ── Capture handlers ──────────────────────────────────────────────────────
+  async function takePhoto() {
+    if (!cameraRef.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
+      if (photo?.uri) router.push({ pathname: "/publish" as never, params: { uri: photo.uri } });
+    } catch (_) { /* ignore */ }
+  }
 
-function Control({
-  icon,
-  label,
-  value,
-  onMinus,
-  onPlus,
-  colors,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  onMinus: () => void;
-  onPlus: () => void;
-  colors: ReturnType<typeof useColors>;
-}) {
-  return (
-    <View style={styles.controlRow}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-        <Feather name={icon as any} size={16} color={colors.primary} />
-        <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 }}>{label}</Text>
+  async function startRecording() {
+    if (!cameraRef.current) return;
+    setIsRecording(true);
+    try {
+      await cameraRef.current.recordAsync({ maxDuration: 60 });
+    } catch (_) { /* ignore */ }
+    setIsRecording(false);
+  }
+
+  async function stopRecording() {
+    cameraRef.current?.stopRecording();
+    setIsRecording(false);
+  }
+
+  async function onCapture() {
+    if (mode === "photo") {
+      await takePhoto();
+    } else {
+      isRecording ? await stopRecording() : await startRecording();
+    }
+  }
+
+  // ── Permission gates ───────────────────────────────────────────────────────
+  if (!cameraPermission) {
+    return (
+      <View style={s.centered}>
+        <ActivityIndicator color={PRIMARY} size="large" />
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Pressable
-          onPress={onMinus}
-          style={[styles.stepBtn, { backgroundColor: colors.secondary }]}
-        >
-          <Feather name="minus" size={14} color={colors.foreground} />
-        </Pressable>
-        <Text
-          style={{
-            minWidth: 64,
-            textAlign: "center",
-            color: colors.foreground,
-            fontFamily: "Inter_600SemiBold",
-            fontSize: 14,
-          }}
-        >
-          {value}
+    );
+  }
+
+  if (!cameraPermission.granted) {
+    return (
+      <View style={[s.centered, { paddingHorizontal: 32 }]}>
+        <Feather name="camera-off" size={48} color={PRIMARY} style={{ marginBottom: 20 }} />
+        <Text style={s.permTitle}>Accès à la caméra requis</Text>
+        <Text style={s.permSub}>
+          ZawyaAI a besoin de la caméra pour t'aider à filmer du contenu parfait.
         </Text>
-        <Pressable
-          onPress={onPlus}
-          style={[styles.stepBtn, { backgroundColor: colors.secondary }]}
-        >
-          <Feather name="plus" size={14} color={colors.foreground} />
-        </Pressable>
+        <PrimaryButton
+          label="Autoriser la caméra"
+          onPress={async () => {
+            await requestCameraPermission();
+            await requestMicPermission();
+          }}
+          style={{ marginTop: 24, width: "100%" }}
+        />
       </View>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <View style={s.root}>
+
+      {/* ── FULL-SCREEN CAMERA ── */}
+      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} />
+
+      {/* ── GRID OVERLAY ── */}
+      {showGrid && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[s.gridLine, s.gridV1]} />
+          <View style={[s.gridLine, s.gridV2]} />
+          <View style={[s.gridLine, s.gridH1]} />
+          <View style={[s.gridLine, s.gridH2]} />
+        </View>
+      )}
+
+      {/* ── GHOST GUIDE ── */}
+      <View style={s.ghostGuide} pointerEvents="none" />
+
+      {/* ── REC BADGE ── */}
+      {isRecording && (
+        <View style={[s.recBadge, { top: insets.top + 12 }]}>
+          <View style={s.recDot} />
+          <Text style={s.recText}>REC {formatTime(recSeconds)}</Text>
+        </View>
+      )}
+
+      {/* ── TOP BAR (floating) ── */}
+      <View style={[s.topBar, { top: insets.top + 8 }]}>
+        <View style={s.pillsRow}>
+          {/* Petite flèche retour */}
+          <Pressable
+            onPress={() => router.push("/(auth)/platform-setup" as never)}
+            style={s.backArrow}
+          >
+            <Feather name="chevron-left" size={20} color="#fff" />
+          </Pressable>
+          <View style={[s.pill, { backgroundColor: platColor + "33", borderColor: platColor }]}>
+            <Feather name={platIcon} size={12} color={platColor} />
+            <Text style={[s.pillText, { color: platColor }]}>{platform.replace("_", " ")}</Text>
+          </View>
+          <View style={[s.pill, { backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.25)" }]}>
+            <Feather name="film" size={12} color="#fff" />
+            <Text style={[s.pillText, { color: "#fff" }]}>{data.shot}</Text>
+          </View>
+        </View>
+
+        {/* Right: grid + flip buttons */}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={() => setShowGrid((v) => !v)}
+            style={[s.iconBtn, showGrid && { backgroundColor: PRIMARY + "55" }]}
+          >
+            <Feather name="grid" size={18} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+            style={s.iconBtn}
+          >
+            <Feather name="refresh-cw" size={18} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ── AI GUIDANCE BAR (floating, above bottom bar) ── */}
+      <View style={[s.aiGuidanceWrap, { bottom: 56 + 140 + insets.bottom }]}>
+        <View style={[s.aiBar, { backgroundColor: aiInfo.bg, borderColor: aiInfo.color + "55" }]}>
+          <Text style={s.aiIcon}>{aiInfo.icon}</Text>
+          <Text style={[s.aiText, { color: aiInfo.color }]}>{aiInfo.text}</Text>
+          <View style={[s.aiPctBadge, { backgroundColor: aiInfo.color + "22" }]}>
+            <Text style={[s.aiPct, { color: aiInfo.color }]}>{aiInfo.pct}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── BOTTOM BAR (floating) ── */}
+      <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 8) + 8, bottom: 56 }]}>
+        {/* Mode row */}
+        <View style={s.modeRow}>
+          {(["photo", "video"] as CaptureMode[]).map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => setMode(m)}
+              style={[s.modeBtn, mode === m && s.modeBtnActive]}
+            >
+              <Text style={[s.modeBtnText, mode === m && s.modeBtnTextActive]}>
+                {m === "photo" ? "Photo" : "Vidéo"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Capture row */}
+        <View style={s.captureRow}>
+          {/* Publish button (replaces gallery) */}
+          <Pressable onPress={() => router.push("/publish" as never)} style={s.sideBtn}>
+            <Feather name="send" size={22} color={PRIMARY} />
+          </Pressable>
+
+          {/* Big capture button */}
+          <Pressable onPress={onCapture} style={s.captureOuter}>
+            {mode === "video" && isRecording ? (
+              <View style={s.captureStopInner} />
+            ) : (
+              <LinearGradient
+                colors={[PRIMARY, ACCENT]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.captureInner}
+              />
+            )}
+          </Pressable>
+
+          {/* IA button — pulsing */}
+          <Pressable onPress={() => setIaOpen(true)} style={s.iaBtnWrapper}>
+            <Animated.View style={[s.iaGlowRing, { opacity: pulseAnim }]} />
+            <Animated.View style={{ opacity: pulseAnim }}>
+              <LinearGradient
+                colors={[PRIMARY, ACCENT]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.iaBtn}
+              >
+                <Text style={s.iaBtnLabel}>IA</Text>
+                <Feather name="zap" size={13} color="#fff" />
+              </LinearGradient>
+            </Animated.View>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ── IA MODAL ── */}
+      <IaModal
+        visible={iaOpen}
+        onClose={() => setIaOpen(false)}
+        aiInfo={aiInfo}
+        data={data}
+        insets={insets}
+        router={router}
+      />
+
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 10,
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  // ── Root ──────────────────────────────────────────────────────────────────
+  root: {
+    flex: 1,
+    backgroundColor: "#000",
   },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
-  subtitle: { marginTop: 4, fontSize: 14, fontFamily: "Inter_400Regular" },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+
+  // ── Permission screens ────────────────────────────────────────────────────
+  centered: {
+    flex: 1,
+    backgroundColor: BG,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-  },
-  viewfinder: {
-    marginHorizontal: 20,
-    height: 460,
-    borderRadius: 22,
-    borderWidth: 1,
-    overflow: "hidden",
-    position: "relative",
-  },
-  permissionWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 28,
-    backgroundColor: "#0A0612",
   },
   permTitle: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: "Inter_600SemiBold",
-    marginTop: 14,
     textAlign: "center",
+    marginBottom: 10,
   },
-  permDesc: {
+  permSub: {
     color: "rgba(255,255,255,0.6)",
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
+    fontSize: 14,
     textAlign: "center",
-    marginTop: 8,
-    lineHeight: 18,
+    lineHeight: 20,
   },
+
+  // ── Grid lines ────────────────────────────────────────────────────────────
   gridLine: {
     position: "absolute",
     backgroundColor: "rgba(255,255,255,0.18)",
   },
-  hudTop: {
+  gridV1: { left: "33.33%", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
+  gridV2: { left: "66.66%", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
+  gridH1: { top: "33.33%", left: 0, right: 0, height: StyleSheet.hairlineWidth },
+  gridH2: { top: "66.66%", left: 0, right: 0, height: StyleSheet.hairlineWidth },
+
+  // ── Ghost guide ───────────────────────────────────────────────────────────
+  ghostGuide: {
     position: "absolute",
-    top: 14,
-    left: 14,
-    right: 14,
+    top: "20%",
+    left: "10%",
+    right: "10%",
+    bottom: "30%",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderStyle: "dashed",
+    borderRadius: 12,
+  },
+
+  // ── REC badge ─────────────────────────────────────────────────────────────
+  recBadge: {
+    position: "absolute",
+    alignSelf: "center",
     flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  recDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+  },
+  recText: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1,
+  },
+
+  // ── Top bar ───────────────────────────────────────────────────────────────
+  topBar: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
   },
-  hudBottom: {
-    position: "absolute",
-    bottom: 90,
-    left: 14,
-    right: 14,
+  pillsRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
+    flexShrink: 1,
+    alignItems: "center",
   },
-  hudPill: {
+  backArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 999,
+    paddingVertical: 5,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
   },
-  hudText: { color: "#fff", fontFamily: "Inter_500Medium", fontSize: 11 },
-  dot: { width: 7, height: 7, borderRadius: 999 },
-  reticle: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    width: 90,
-    height: 90,
-    marginTop: -45,
-    marginLeft: -45,
-    borderWidth: 1,
-    borderColor: "rgba(168,85,247,0.6)",
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reticleInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: "#A855F7",
-  },
-  captureWrap: {
-    position: "absolute",
-    bottom: 16,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  captureOuter: {
-    width: 64,
-    height: 64,
-    borderRadius: 999,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.85)",
-    padding: 4,
-  },
-  captureInner: { flex: 1, borderRadius: 999 },
-  lastThumb: {
-    position: "absolute",
-    bottom: 24,
-    right: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  lastThumbInner: {
-    flex: 1,
-    backgroundColor: "#A855F7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sectionTitle: {
-    fontSize: 17,
+  pillText: {
+    fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    paddingHorizontal: 20,
-    marginBottom: 12,
+    textTransform: "capitalize",
   },
-  chipRow: { paddingHorizontal: 20, gap: 8 },
-  chip: {
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // ── AI guidance bar (floating) ────────────────────────────────────────────
+  aiGuidanceWrap: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+  },
+  aiBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  chipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  grid: {
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  angleCard: {
-    width: "31%",
-    paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
-    alignItems: "center",
   },
-  angleLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  angleValue: { marginTop: 2, fontSize: 11, fontFamily: "Inter_500Medium" },
-  controlCard: {
-    marginHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
+  aiIcon: {
+    fontSize: 16,
   },
-  controlRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  aiText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+  aiPctBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  aiPct: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+  },
+
+  // ── Bottom bar ────────────────────────────────────────────────────────────
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingTop: 12,
+    paddingHorizontal: 20,
     gap: 12,
   },
-  stepBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+  modeRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 24,
+  },
+  modeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  modeBtnActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: PRIMARY,
+  },
+  modeBtnText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+  modeBtnTextActive: {
+    color: "#fff",
+    fontFamily: "Inter_600SemiBold",
+  },
+  captureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sideBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  captureOuter: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 3,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  captureInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  captureStopInner: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: "#EF4444",
+  },
+
+  // ── IA button ─────────────────────────────────────────────────────────────
+  iaBtnWrapper: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iaGlowRing: {
+    position: "absolute",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: PRIMARY,
+    ...Platform.select({
+      ios: {
+        shadowColor: PRIMARY,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  iaBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  iaBtnLabel: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
+  },
+
+  // ── IA Modal ──────────────────────────────────────────────────────────────
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  modalSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#1A1A1F",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    maxHeight: "80%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalClose: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+
+  // ── Param cards ───────────────────────────────────────────────────────────
+  paramRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  paramCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+  },
+  paramValue: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+  },
+  paramLabel: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+    textAlign: "center",
+  },
+
+  // ── Tips ──────────────────────────────────────────────────────────────────
+  sectionTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+  tipRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  tipIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  tipText: {
+    flex: 1,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: "Inter_400Regular",
+  },
+
+  // ── Change type button ────────────────────────────────────────────────────
+  changeTypeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(77,200,232,0.08)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: PRIMARY + "33",
+  },
+  changeTypeText: {
+    flex: 1,
+    color: PRIMARY,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+
+  // ── Premium row ───────────────────────────────────────────────────────────
+  premiumRow: {
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  premiumGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: ACCENT + "44",
+  },
+  premiumText: {
+    flex: 1,
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
   },
 });

@@ -1,4 +1,4 @@
-import type { UserPlan } from "@/constants/luts";
+﻿import type { UserPlan } from "@/constants/luts";
 
 export const PLAN_LABELS: Record<UserPlan, string> = {
   free: "Gratuit",
@@ -8,8 +8,8 @@ export const PLAN_LABELS: Record<UserPlan, string> = {
 
 export const PLAN_COLORS: Record<UserPlan, string> = {
   free: "#6B7280",
-  pro: "#A855F7",
-  studio: "#C026D3",
+  pro: "#4DC8E8",
+  studio: "#7C3AED",
 };
 
 export const SUPPORT_FREE_LIMIT = 5;

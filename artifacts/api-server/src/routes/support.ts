@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import Anthropic from "@anthropic-ai/sdk";
 import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
@@ -33,28 +33,18 @@ Style : chaleureux, concis, professionnel, en français par défaut (réponds en
 router.post("/support/chat", async (req, res) => {
   const body = (req.body ?? {}) as ChatRequest;
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  if (messages.length === 0) {
-    return res.status(400).json({ error: "missing_messages" });
-  }
+  if (messages.length === 0) return res.status(400).json({ error: "missing_messages" });
 
   const cleaned = messages
-    .filter(
-      (m) =>
-        m &&
-        (m.role === "user" || m.role === "assistant") &&
-        typeof m.content === "string" &&
-        m.content.trim().length > 0,
-    )
+    .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim().length > 0)
     .slice(-20);
 
-  if (cleaned.length === 0) {
-    return res.status(400).json({ error: "invalid_messages" });
-  }
+  if (cleaned.length === 0) return res.status(400).json({ error: "invalid_messages" });
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
+      model: "claude-opus-4-5",
+      max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: cleaned.map((m) => ({ role: m.role, content: m.content })),
     });
@@ -63,9 +53,7 @@ router.post("/support/chat", async (req, res) => {
     return res.json({ reply });
   } catch (err) {
     const error = err as Error;
-    return res
-      .status(500)
-      .json({ error: "ai_failed", message: error.message ?? "unknown" });
+    return res.status(500).json({ error: "ai_failed", message: error.message ?? "unknown" });
   }
 });
 

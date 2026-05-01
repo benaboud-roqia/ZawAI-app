@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import Anthropic from "@anthropic-ai/sdk";
 import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
@@ -40,7 +40,7 @@ Les conseils doivent être concrets, en français, professionnels et adaptés au
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-opus-4-5",
       max_tokens: 2048,
       messages: [{ role: "user", content: userPrompt }],
     });

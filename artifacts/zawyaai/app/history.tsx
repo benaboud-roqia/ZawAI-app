@@ -1,4 +1,4 @@
-import { Feather, FontAwesome, FontAwesome5 } from "@expo/vector-icons";
+﻿import { Feather, FontAwesome, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -110,7 +110,7 @@ export default function HistoryScreen() {
 
         {items.length > 0 ? (
           <LinearGradient
-            colors={["#A855F7", "#C026D3"]}
+            colors={["#4DC8E8", "#7C3AED"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.statsCard}
@@ -149,7 +149,7 @@ export default function HistoryScreen() {
                 lut={lut}
                 style={styles.itemImage}
                 fallback={
-                  <LinearGradient colors={["#1a0e2e", "#2A1B4A"]} style={StyleSheet.absoluteFill} />
+                  <LinearGradient colors={["#1a0e2e", "#1C1C1F"]} style={StyleSheet.absoluteFill} />
                 }
               />
 

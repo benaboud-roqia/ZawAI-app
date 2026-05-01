@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -50,7 +50,7 @@ function buildNotifications(items: HistoryItem[], userName: string): Notif[] {
     id: "welcome",
     icon: "star",
     iconBg: "rgba(168,85,247,0.18)",
-    iconColor: "#A855F7",
+    iconColor: "#4DC8E8",
     title: `Bienvenue ${userName} sur ZawyaAI`,
     body: "Découvrez les 8 étalonnages cinéma et la publication multi-plateformes.",
     ts: Date.now() - 1000 * 60 * 60 * 24 * 2,
@@ -90,7 +90,7 @@ function buildNotifications(items: HistoryItem[], userName: string): Notif[] {
         id: `score_${item.id}`,
         icon: "award",
         iconBg: "rgba(192,38,211,0.2)",
-        iconColor: "#C026D3",
+        iconColor: "#7C3AED",
         title: `Score viral ${item.score} 🔥`,
         body: "Excellent travail, ce contenu est dans le top 5% des publications ZawyaAI.",
         ts: item.createdAt + 1000 * 60 * 60,
@@ -218,7 +218,7 @@ export default function NotificationsScreen() {
 
         {/* AI Tips card */}
         <LinearGradient
-          colors={["#A855F7", "#C026D3"]}
+          colors={["#4DC8E8", "#7C3AED"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.tipsCard}

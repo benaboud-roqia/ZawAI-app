@@ -4,6 +4,7 @@ import captionsRouter from "./captions";
 import supportRouter from "./support";
 import tipsRouter from "./tips";
 import scenariosRouter from "./scenarios";
+import analyzeRouter from "./analyze";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(captionsRouter);
 router.use(supportRouter);
 router.use(tipsRouter);
 router.use(scenariosRouter);
+router.use(analyzeRouter);
 
 export default router;

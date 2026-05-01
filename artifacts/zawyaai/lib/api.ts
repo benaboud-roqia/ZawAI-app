@@ -1,11 +1,8 @@
-const PUBLIC_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://zawia-api.onrender.com";
 
 export function apiUrl(path: string): string {
   const clean = path.startsWith("/") ? path : `/${path}`;
-  if (PUBLIC_DOMAIN) {
-    return `https://${PUBLIC_DOMAIN}/api${clean}`;
-  }
-  return `/api${clean}`;
+  return `${API_URL}/api${clean}`;
 }
 
 export type GeneratedCaption = {

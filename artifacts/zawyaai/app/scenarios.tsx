@@ -1,9 +1,10 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -16,14 +17,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { generateScenario, type Scenario } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { generateScenarioPDF } from "@/lib/pdf";
 
 const NICHES = [
   { id: "cuisine", name: "Cuisine", icon: "coffee", color: "#F59E0B" },
-  { id: "mode", name: "Mode", icon: "shopping-bag", color: "#EC4899" },
+  { id: "mode", name: "Mode", icon: "shopping-bag", color: "#4DC8E8" },
   { id: "voyage", name: "Voyage", icon: "map", color: "#06B6D4" },
   { id: "fitness", name: "Fitness", icon: "activity", color: "#22C55E" },
-  { id: "lifestyle", name: "Lifestyle", icon: "sun", color: "#A855F7" },
-  { id: "beauté", name: "Beauté", icon: "star", color: "#C026D3" },
+  { id: "lifestyle", name: "Lifestyle", icon: "sun", color: "#4DC8E8" },
+  { id: "beauté", name: "Beauté", icon: "star", color: "#7C3AED" },
   { id: "tech", name: "Tech", icon: "smartphone", color: "#3B82F6" },
   { id: "musique", name: "Musique", icon: "music", color: "#EF4444" },
 ];
@@ -44,16 +47,45 @@ export default function ScenariosScreen() {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generateCount, setGenerateCount] = useState(0);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const { user } = useAuth();
+  const isPro = user?.plan === "pro" || user?.plan === "studio";
+
+  const onExportPDF = async () => {
+    if (!scenario) return;
+    setPdfLoading(true);
+    try {
+      await generateScenarioPDF(scenario);
+    } catch {
+      Alert.alert("Erreur", "Impossible de générer le PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const onGenerate = async () => {
+    // 1 génération gratuite, reste Premium
+    if (generateCount >= 1 && !isPro) {
+      setError("Génération illimitée disponible avec le plan Pro. Appuyez sur Améliorer dans Paramètres.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setScenario(null);
     try {
       const result = await generateScenario({ niche, topic, duration, platform });
       setScenario(result);
+      setGenerateCount(c => c + 1);
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message ?? "";
+      if (msg.includes("500")) {
+        setError("Erreur serveur IA. Réessayez dans quelques secondes.");
+      } else if (msg.includes("fetch") || msg.includes("network")) {
+        setError(`Connexion échouée. Serveur : ${process.env.EXPO_PUBLIC_API_URL ?? "non configuré"}`);
+      } else {
+        setError(`Erreur : ${msg}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -182,7 +214,7 @@ export default function ScenariosScreen() {
         {/* Generate button */}
         <Pressable onPress={onGenerate} disabled={loading} style={{ marginTop: 18 }}>
           <LinearGradient
-            colors={["#A855F7", "#C026D3"]}
+            colors={["#4DC8E8", "#7C3AED"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.genBtn}
@@ -210,7 +242,7 @@ export default function ScenariosScreen() {
         {scenario ? (
           <View style={{ marginTop: 24 }}>
             <LinearGradient
-              colors={["#1a0e2e", "#2A1B4A"]}
+              colors={["#1a0e2e", "#1C1C1F"]}
               style={styles.scenarioHero}
             >
               <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 }}>
@@ -243,12 +275,12 @@ export default function ScenariosScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
                     <View style={[styles.shotBadge, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
-                      <Text style={{ color: "#A855F7", fontFamily: "Inter_600SemiBold", fontSize: 10 }}>
+                      <Text style={{ color: "#4DC8E8", fontFamily: "Inter_600SemiBold", fontSize: 10 }}>
                         {shot.shotType}
                       </Text>
                     </View>
                     <View style={[styles.shotBadge, { backgroundColor: "rgba(192,38,211,0.18)" }]}>
-                      <Text style={{ color: "#C026D3", fontFamily: "Inter_600SemiBold", fontSize: 10 }}>
+                      <Text style={{ color: "#7C3AED", fontFamily: "Inter_600SemiBold", fontSize: 10 }}>
                         {shot.angle}
                       </Text>
                     </View>
@@ -288,6 +320,25 @@ export default function ScenariosScreen() {
                 ))}
               </View>
             ) : null}
+
+            {/* Bouton Export PDF */}
+            <Pressable
+              onPress={onExportPDF}
+              disabled={pdfLoading}
+              style={{ marginTop: 16, opacity: pdfLoading ? 0.7 : 1 }}
+            >
+              <LinearGradient
+                colors={["#4DC8E8", "#7C3AED"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, height: 52, borderRadius: 14 }}
+              >
+                <Feather name={pdfLoading ? "loader" : "file-text"} size={18} color="#fff" />
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>
+                  {pdfLoading ? "Génération PDF…" : "Exporter en PDF"}
+                </Text>
+              </LinearGradient>
+            </Pressable>
           </View>
         ) : null}
       </ScrollView>

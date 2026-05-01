@@ -1,31 +1,34 @@
 const colors = {
   light: {
-    text: "#F5F3FF",
-    tint: "#A855F7",
+    text: "#FFFFFF",
+    tint: "#4DC8E8",
 
-    background: "#0A0612",
-    foreground: "#F5F3FF",
+    // Fond très sombre, presque noir avec légère teinte
+    background: "#0D0D0F",
+    foreground: "#FFFFFF",
 
-    card: "#15101F",
-    cardForeground: "#F5F3FF",
+    card: "#18181B",
+    cardForeground: "#FFFFFF",
 
-    primary: "#A855F7",
+    // Gradient principal : aqua → violet
+    primary: "#4DC8E8",
     primaryForeground: "#FFFFFF",
+    primaryGradient: ["#4DC8E8", "#7C3AED"] as [string, string],
 
-    secondary: "#1E1830",
-    secondaryForeground: "#F5F3FF",
+    secondary: "#1C1C1F",
+    secondaryForeground: "#FFFFFF",
 
-    muted: "#1E1830",
-    mutedForeground: "#8B85A1",
+    muted: "#1C1C1F",
+    mutedForeground: "#71717A",
 
-    accent: "#C026D3",
+    accent: "#7C3AED",
     accentForeground: "#FFFFFF",
 
     destructive: "#EF4444",
     destructiveForeground: "#FFFFFF",
 
-    border: "#2A2240",
-    input: "#1E1830",
+    border: "#27272A",
+    input: "#18181B",
 
     success: "#22C55E",
     warning: "#F59E0B",

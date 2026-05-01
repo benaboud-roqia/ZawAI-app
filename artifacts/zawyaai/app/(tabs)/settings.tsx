@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -65,7 +65,7 @@ export default function SettingsScreen() {
             ]}
           >
             <LinearGradient
-              colors={["#A855F7", "#C026D3"]}
+              colors={["#4DC8E8", "#7C3AED"]}
               style={styles.avatar}
             >
               <Text style={styles.avatarText}>
@@ -87,7 +87,7 @@ export default function SettingsScreen() {
         <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
           <Pressable onPress={() => router.push("/premium")}>
             <LinearGradient
-              colors={["#A855F7", "#C026D3"]}
+              colors={["#4DC8E8", "#7C3AED"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.premiumCard}
@@ -98,10 +98,10 @@ export default function SettingsScreen() {
                 <Text style={styles.premiumPrice}>{currentPlan.priceLabel}</Text>
               </View>
               <View style={styles.premiumCta}>
-                <Text style={{ color: "#7C2BD9", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                <Text style={{ color: "#7C3AED", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
                   {currentPlan.id === "studio" ? "Gérer" : "Améliorer"}
                 </Text>
-                <Feather name="arrow-right" size={14} color="#7C2BD9" />
+                <Feather name="arrow-right" size={14} color="#7C3AED" />
               </View>
             </LinearGradient>
           </Pressable>
@@ -132,6 +132,12 @@ export default function SettingsScreen() {
             onChange={setVoice}
             colors={colors}
           />
+        </Section>
+
+        <Section title="Créativité" colors={colors}>
+          <NavRow icon="droplet" label="Watermark personnalisé" colors={colors} onPress={() => router.push("/watermark")} />
+          <Divider colors={colors} />
+          <NavRow icon="users" label="Collaboration" colors={colors} onPress={() => router.push("/collaboration")} highlight />
         </Section>
 
         <Section title="Mon contenu" colors={colors}>
@@ -166,9 +172,9 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="Compte" colors={colors}>
-          <NavRow icon="user" label="Profil" colors={colors} />
+          <NavRow icon="user" label="Profil" colors={colors} onPress={() => router.push("/profile")} />
           <Divider colors={colors} />
-          <NavRow icon="shield" label="Confidentialité" colors={colors} />
+          <NavRow icon="shield" label="Confidentialité" colors={colors} onPress={() => router.push("/privacy")} />
           <Divider colors={colors} />
           <NavRow
             icon="bell"
@@ -179,17 +185,11 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="Support" colors={colors}>
-          <NavRow
-            icon="message-circle"
-            label="Assistant IA · Zawya"
-            colors={colors}
-            onPress={() => router.push("/support")}
-            highlight
-          />
+          <NavRow icon="help-circle" label="Centre d'aide" colors={colors} onPress={() => router.push("/help")} />
           <Divider colors={colors} />
-          <NavRow icon="help-circle" label="Centre d'aide" colors={colors} />
+          <NavRow icon="file-text" label="Conditions d'utilisation" colors={colors} onPress={() => router.push("/terms")} />
           <Divider colors={colors} />
-          <NavRow icon="file-text" label="Conditions" colors={colors} />
+          <NavRow icon="info" label="À propos de nous" colors={colors} onPress={() => router.push("/about")} highlight />
         </Section>
 
         <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
@@ -212,7 +212,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={[styles.version, { color: colors.mutedForeground }]}>
-          ZawyaAI · v1.0.0
+          ZawIA · v1.0.0 · Startup Algérien 🇩🇿
         </Text>
       </ScrollView>
     </View>

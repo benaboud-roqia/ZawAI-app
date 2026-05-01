@@ -1,4 +1,4 @@
-import { LinearGradient } from "expo-linear-gradient";
+﻿import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
@@ -52,7 +52,7 @@ export function PrimaryButton({
         ]}
       >
         <LinearGradient
-          colors={["#A855F7", "#C026D3"]}
+          colors={["#4DC8E8", "#7C3AED"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.btn, { borderRadius: colors.radius }]}

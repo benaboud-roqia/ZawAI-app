@@ -58,7 +58,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="agent"
         options={{
-          title: "IA Agentic",
+          title: "Studio IA",
           tabBarIcon: ({ color }) => (
             <Feather name="cpu" size={22} color={color} />
           ),

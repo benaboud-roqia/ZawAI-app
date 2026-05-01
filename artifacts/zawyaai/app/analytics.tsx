@@ -1,8 +1,9 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LUTS } from "@/constants/luts";
 import { useHistory } from "@/contexts/HistoryContext";
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/contexts/AuthContext";
+import { generateAnalyticsPDF } from "@/lib/pdf";
 
 const formatNumber = (n: number) => {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -27,7 +30,28 @@ export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { items } = useHistory();
+  const { user } = useAuth();
+  const [pdfLoading, setPdfLoading] = useState(false);
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 24) : insets.top;
+
+  const onExportPDF = async () => {
+    setPdfLoading(true);
+    try {
+      await generateAnalyticsPDF({
+        userName: user?.name ?? "Créateur",
+        totalViews: stats.totalViews,
+        totalLikes: stats.totalLikes,
+        avgScore: stats.avgScore,
+        engagement: stats.engagement,
+        topPosts: topPosts.map(p => ({ caption: p.caption, score: p.score, views: p.views, likes: p.likes, platforms: p.platforms })),
+        platformBreakdown,
+      });
+    } catch {
+      Alert.alert("Erreur", "Impossible de générer le PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const stats = useMemo(() => {
     if (items.length === 0) {
@@ -103,6 +127,14 @@ export default function AnalyticsScreen() {
               {items.length} publication{items.length > 1 ? "s" : ""} analysée{items.length > 1 ? "s" : ""}
             </Text>
           </View>
+          {/* Bouton PDF */}
+          <Pressable
+            onPress={onExportPDF}
+            disabled={pdfLoading || items.length === 0}
+            style={[styles.closeBtn, { backgroundColor: "#4DC8E822", borderColor: "#4DC8E8", opacity: items.length === 0 ? 0.4 : 1 }]}
+          >
+            <Feather name={pdfLoading ? "loader" : "file-text"} size={18} color="#4DC8E8" />
+          </Pressable>
           <Pressable
             onPress={() => router.back()}
             style={[styles.closeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -118,14 +150,14 @@ export default function AnalyticsScreen() {
             value={formatNumber(stats.totalViews)}
             icon="eye"
             colors={colors}
-            gradient={["#7C2BD9", "#A855F7"]}
+            gradient={["#7C3AED", "#4DC8E8"]}
           />
           <BigStat
             label="Engagement"
             value={`${stats.engagement}%`}
             icon="heart"
             colors={colors}
-            gradient={["#C026D3", "#EC4899"]}
+            gradient={["#7C3AED", "#4DC8E8"]}
           />
         </View>
 
@@ -163,7 +195,7 @@ export default function AnalyticsScreen() {
                 <View key={i} style={styles.barCol}>
                   <View style={styles.barWrap}>
                     <LinearGradient
-                      colors={["#A855F7", "#C026D3"]}
+                      colors={["#4DC8E8", "#7C3AED"]}
                       style={[styles.bar, { height: `${heightPct}%` }]}
                     />
                   </View>
@@ -194,7 +226,7 @@ export default function AnalyticsScreen() {
                 </View>
                 <View style={[styles.progressTrack, { backgroundColor: colors.secondary }]}>
                   <LinearGradient
-                    colors={["#A855F7", "#C026D3"]}
+                    colors={["#4DC8E8", "#7C3AED"]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={[styles.progressFill, { width: `${p.pct}%` }]}
@@ -246,7 +278,7 @@ export default function AnalyticsScreen() {
                 style={[styles.topPost, { backgroundColor: colors.card, borderColor: colors.border }]}
               >
                 <LinearGradient
-                  colors={idx === 0 ? ["#F59E0B", "#EF4444"] : idx === 1 ? ["#A855F7", "#C026D3"] : ["#3B82F6", "#06B6D4"]}
+                  colors={idx === 0 ? ["#F59E0B", "#EF4444"] : idx === 1 ? ["#4DC8E8", "#7C3AED"] : ["#3B82F6", "#06B6D4"]}
                   style={styles.rankBadge}
                 >
                   <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>

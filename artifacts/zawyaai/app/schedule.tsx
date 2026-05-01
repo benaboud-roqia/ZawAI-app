@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -92,7 +92,7 @@ export default function ScheduleScreen() {
 
         {/* Optimal times */}
         <LinearGradient
-          colors={["#A855F7", "#C026D3"]}
+          colors={["#4DC8E8", "#7C3AED"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.optimalCard}

@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import Anthropic from "@anthropic-ai/sdk";
 import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
@@ -54,7 +54,7 @@ Le scénario doit avoir 4 à 7 plans qui totalisent environ ${duration} secondes
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-opus-4-5",
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
@@ -92,7 +92,7 @@ Sois concis (raison en 6 mots max) et réaliste pour le fuseau horaire ${timezon
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-opus-4-5",
       max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });

@@ -1,4 +1,4 @@
-import { Feather, FontAwesome, FontAwesome5 } from "@expo/vector-icons";
+﻿import { Feather, FontAwesome, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { CinematicImage } from "@/components/CinematicImage";
@@ -9,7 +9,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,7 +23,7 @@ import { useHistory } from "@/contexts/HistoryContext";
 import { useColors } from "@/hooks/useColors";
 import { generateCaptions, type GeneratedCaption } from "@/lib/api";
 
-type Platform = {
+type PlatformItem = {
   id: string;
   name: string;
   icon: any;
@@ -33,7 +32,7 @@ type Platform = {
   format: string;
 };
 
-const PLATFORMS: Platform[] = [
+const PLATFORMS: PlatformItem[] = [
   { id: "instagram", name: "Instagram", icon: "instagram", iconLib: "fa", gradient: ["#F58529", "#DD2A7B"], format: "9:16 · Reels" },
   { id: "tiktok", name: "TikTok", icon: "tiktok", iconLib: "fa5", gradient: ["#25F4EE", "#FE2C55"], format: "9:16 · Vidéo" },
   { id: "snapchat", name: "Snapchat", icon: "snapchat-ghost", iconLib: "fa", gradient: ["#FFFC00", "#F4C800"], format: "9:16 · Spotlight" },
@@ -59,7 +58,7 @@ export default function PublishScreen() {
   const { add: addToHistory } = useHistory();
   const { user } = useAuth();
   const userPlan = user?.plan;
-  const topPad = Platform.OS === "web" ? Math.max(insets.top, 24) : insets.top;
+  const topPad = insets.top + 16;
 
   const [selected, setSelected] = useState<string[]>(["instagram", "tiktok"]);
   const [caption, setCaption] = useState(
@@ -158,7 +157,6 @@ export default function PublishScreen() {
 
   const onPublish = async () => {
     if (selected.length === 0) {
-      if (Platform.OS === "web") return;
       Alert.alert("Sélectionnez au moins une plateforme.");
       return;
     }
@@ -176,19 +174,15 @@ export default function PublishScreen() {
         .map((id) => PLATFORMS.find((p) => p.id === id)?.name)
         .filter(Boolean)
         .join(", ");
-      if (Platform.OS === "web") {
-        router.back();
-      } else {
-        Alert.alert(
-          "Publication lancée",
-          `Votre contenu est en cours de diffusion sur : ${names}. Retrouvez-le dans Mes publications.`,
-          [{ text: "OK", onPress: () => router.back() }],
-        );
-      }
+      Alert.alert(
+        "Publication lancée",
+        `Votre contenu est en cours de diffusion sur : ${names}. Retrouvez-le dans Mes publications.`,
+        [{ text: "OK", onPress: () => router.back() }],
+      );
     }, 1400);
   };
 
-  const renderIcon = (p: Platform, color: string) => {
+  const renderIcon = (p: PlatformItem, color: string) => {
     if (p.iconLib === "fa5") {
       return <FontAwesome5 name={p.icon} size={22} color={color} />;
     }
@@ -208,6 +202,15 @@ export default function PublishScreen() {
         }}
       >
         <View style={styles.header}>
+          {/* Bouton prendre un nouveau */}
+          <Pressable
+            onPress={() => router.replace("/(auth)/platform-setup")}
+            style={[styles.newBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Feather name="camera" size={16} color="#4DC8E8" />
+            <Text style={{ color: "#4DC8E8", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Nouveau</Text>
+          </Pressable>
+
           <Pressable
             onPress={() => router.back()}
             style={[styles.closeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -234,7 +237,7 @@ export default function PublishScreen() {
           }}
           fallback={
             <LinearGradient
-              colors={["#1a0e2e", "#2A1B4A"]}
+              colors={["#1a0e2e", "#1C1C1F"]}
               style={StyleSheet.absoluteFill}
             />
           }
@@ -300,7 +303,7 @@ export default function PublishScreen() {
                     style={StyleSheet.absoluteFillObject}
                     fallback={
                       <LinearGradient
-                        colors={["#1a0e2e", "#2A1B4A"]}
+                        colors={["#1a0e2e", "#1C1C1F"]}
                         style={StyleSheet.absoluteFill}
                       />
                     }
@@ -343,54 +346,23 @@ export default function PublishScreen() {
           })}
         </ScrollView>
 
-        {/* Platforms */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
-          Plateformes
-        </Text>
-        <View style={styles.platforms}>
-          {PLATFORMS.map((p) => {
-            const active = selected.includes(p.id);
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => toggle(p.id)}
-                style={[
-                  styles.platformCard,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: active ? colors.primary : colors.border,
-                    borderWidth: active ? 2 : 1,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={p.gradient}
-                  style={styles.platformIcon}
-                >
+        {/* Platform info — already chosen, display only */}
+        <View style={[styles.platformInfoCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 20 }]}>
+          <Feather name="check-circle" size={16} color={colors.success} />
+          <Text style={{ flex: 1, color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 }}>
+            Plateforme sélectionnée
+          </Text>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {selected.map(id => {
+              const p = PLATFORMS.find(x => x.id === id);
+              if (!p) return null;
+              return (
+                <LinearGradient key={id} colors={p.gradient} style={styles.platformBadge}>
                   {renderIcon(p, "#fff")}
                 </LinearGradient>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.platformName, { color: colors.foreground }]}>
-                    {p.name}
-                  </Text>
-                  <Text style={[styles.platformFormat, { color: colors.mutedForeground }]}>
-                    {p.format}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.checkbox,
-                    {
-                      borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.primary : "transparent",
-                    },
-                  ]}
-                >
-                  {active ? <Feather name="check" size={14} color="#fff" /> : null}
-                </View>
-              </Pressable>
-            );
-          })}
+              );
+            })}
+          </View>
         </View>
 
         {/* Caption */}
@@ -568,7 +540,16 @@ export default function PublishScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 12 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  newBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   closeBtn: {
     width: 40,
     height: 40,
@@ -662,6 +643,21 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 14,
     borderRadius: 14,
+  },
+  platformInfoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  platformBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   platformIcon: {
     width: 44,
