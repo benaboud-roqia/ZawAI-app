@@ -65,8 +65,19 @@ Réponds UNIQUEMENT en JSON strict sans markdown :
 
 /**
  * POST /analyze/frame
- * Analyse en temps réel pour la caméra (input: frame caméra, output: conseils)
+ * Analyse en temps réel pour la caméra (input: frame caméra, output: conseils DOP)
  * Body: { imageBase64: string }
+ * 
+ * Output format basé sur le modèle DOP (Director of Photography):
+ * - angle: Type d'angle (Eye Level, High Angle, Low Angle, Bird's Eye, Dutch Angle, Over Shoulder, POV)
+ * - iso: Sensibilité ISO recommandée (100, 200, 400, 800, 1600, 3200)
+ * - speed: Vitesse d'obturation (1/30, 1/60, 1/120, 1/250, 1/500, 1/1000)
+ * - wb: Balance des blancs en Kelvin (2500K-10000K)
+ * - shot_type: Type de plan (ECU, CU, MCU, MS, MLS, LS)
+ * - lighting: Qualité d'éclairage (Excellent, Good, Fair, Poor)
+ * - guidance: Conseils principaux (Exposure, Composition, Focus)
+ * - lighting_pct: Pourcentage de lumière (0-100)
+ * - quality_score: Score de qualité global (0-100)
  */
 analyzeRouter.post("/analyze/frame", async (req, res) => {
   const { imageBase64 } = req.body as { imageBase64?: string };
@@ -75,30 +86,39 @@ analyzeRouter.post("/analyze/frame", async (req, res) => {
     return res.status(400).json({ message: "imageBase64 requis" });
   }
 
-  const prompt = `Tu es un directeur de la photographie expert. Analyse cette image de caméra en temps réel.
+  const prompt = `Tu es un directeur de la photographie (DOP) expert. Analyse cette image de caméra en temps réel et fournis des recommandations techniques précises.
 
 Réponds UNIQUEMENT en JSON strict, sans markdown :
 {
-  "composition": {
-    "score": 85,
-    "feedback": "Bon équilibre visuel, sujet bien placé"
-  },
-  "exposure": {
-    "score": 70,
-    "feedback": "Légèrement sous-exposé, augmente ISO"
-  },
-  "framing": {
-    "score": 90,
-    "feedback": "Cadrage serré efficace"
-  },
-  "ruleOfThirds": {
-    "score": 95,
-    "feedback": "Sujet sur ligne de force"
-  },
-  "quickTip": "Conseil rapide en 1 phrase"
+  "angle": "Eye Level",
+  "iso": "400",
+  "speed": "1/120",
+  "wb": "5600K",
+  "shot_type": "MS",
+  "lighting": "Good",
+  "guidance": ["Augmente légèrement l'exposition", "Sujet bien cadré"],
+  "lighting_pct": 75,
+  "quality_score": 82
 }
 
-Scores de 0 à 100. Feedback en français, max 8 mots. QuickTip en 1 phrase courte.`;
+RÈGLES STRICTES :
+- angle: UNIQUEMENT parmi ["Eye Level", "High Angle", "Low Angle", "Bird's Eye", "Dutch Angle", "Over Shoulder", "POV"]
+- iso: UNIQUEMENT parmi ["100", "200", "400", "800", "1600", "3200"]
+- speed: UNIQUEMENT parmi ["1/30", "1/60", "1/120", "1/250", "1/500", "1/1000"]
+- wb: Valeur en Kelvin entre 2500K et 10000K (ex: "5600K")
+- shot_type: UNIQUEMENT parmi ["ECU", "CU", "MCU", "MS", "MLS", "LS"]
+  * ECU = Extreme Close-Up (très gros plan)
+  * CU = Close-Up (gros plan)
+  * MCU = Medium Close-Up (plan rapproché)
+  * MS = Medium Shot (plan moyen)
+  * MLS = Medium Long Shot (plan demi-ensemble)
+  * LS = Long Shot (plan d'ensemble)
+- lighting: UNIQUEMENT parmi ["Excellent", "Good", "Fair", "Poor"]
+- guidance: Array de 2-3 conseils courts en français
+- lighting_pct: Nombre entre 0 et 100 (pourcentage de lumière disponible)
+- quality_score: Nombre entre 0 et 100 (score de qualité global)
+
+Analyse l'image et fournis des recommandations techniques précises basées sur les conditions réelles.`;
 
   try {
     const message = await client.messages.create({
@@ -132,14 +152,36 @@ Scores de 0 à 100. Feedback en français, max 8 mots. QuickTip en 1 phrase cour
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
-    } catch {
-      // Fallback si le parsing échoue
+      
+      // Validation et fallback pour chaque champ
+      const validAngles = ["Eye Level", "High Angle", "Low Angle", "Bird's Eye", "Dutch Angle", "Over Shoulder", "POV"];
+      const validISO = ["100", "200", "400", "800", "1600", "3200"];
+      const validSpeed = ["1/30", "1/60", "1/120", "1/250", "1/500", "1/1000"];
+      const validShotTypes = ["ECU", "CU", "MCU", "MS", "MLS", "LS"];
+      const validLighting = ["Excellent", "Good", "Fair", "Poor"];
+      
+      if (!validAngles.includes(parsed.angle)) parsed.angle = "Eye Level";
+      if (!validISO.includes(parsed.iso)) parsed.iso = "400";
+      if (!validSpeed.includes(parsed.speed)) parsed.speed = "1/120";
+      if (!validShotTypes.includes(parsed.shot_type)) parsed.shot_type = "MS";
+      if (!validLighting.includes(parsed.lighting)) parsed.lighting = "Good";
+      if (typeof parsed.lighting_pct !== "number") parsed.lighting_pct = 75;
+      if (typeof parsed.quality_score !== "number") parsed.quality_score = 75;
+      if (!Array.isArray(parsed.guidance)) parsed.guidance = ["Continue comme ça"];
+      
+    } catch (parseError) {
+      console.error("[Parse error]", parseError);
+      // Fallback complet si le parsing échoue
       parsed = {
-        composition: { score: 75, feedback: "Analyse en cours..." },
-        exposure: { score: 75, feedback: "Exposition correcte" },
-        framing: { score: 75, feedback: "Cadrage standard" },
-        ruleOfThirds: { score: 75, feedback: "Positionnement acceptable" },
-        quickTip: "Continue comme ça !",
+        angle: "Eye Level",
+        iso: "400",
+        speed: "1/120",
+        wb: "5600K",
+        shot_type: "MS",
+        lighting: "Good",
+        guidance: ["Analyse en cours...", "Maintenez la position"],
+        lighting_pct: 75,
+        quality_score: 75,
       };
     }
 

@@ -22,6 +22,7 @@ import { analyzeExposure } from "@/lib/ai/exposureAI";
 import { analyzeComposition } from "@/lib/ai/compositionAI";
 import { startStabilityMonitor, stopStabilityMonitor } from "@/lib/ai/stabilityAI";
 import { computeGlobalScore, type GlobalScore } from "@/lib/ai/scoreAI";
+import { analyzeCameraFrame, getFallbackAnalysis, formatShotType, getLightingColor, getQualityScoreColor, type CameraAIAnalysis } from "@/lib/ai/cameraAI";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PRIMARY = "#4DC8E8";
@@ -76,12 +77,14 @@ interface IaModalProps {
   visible: boolean;
   onClose: () => void;
   aiInfo: { icon: string; text: string; color: string; bg: string; pct: string };
-  data: { angle: string; iso: string; speed: string; wb: string; tip: string; tip2: string };
+  aiAnalysis: CameraAIAnalysis;
   insets: { bottom: number };
   router: ReturnType<typeof useRouter>;
 }
 
-function IaModal({ visible, onClose, aiInfo, data, insets, router }: IaModalProps) {
+function IaModal({ visible, onClose, aiInfo, aiAnalysis, insets, router }: IaModalProps) {
+  const scoreColor = getQualityScoreColor(aiAnalysis.quality_score);
+  
   return (
     <Modal
       visible={visible}
@@ -113,14 +116,32 @@ function IaModal({ visible, onClose, aiInfo, data, insets, router }: IaModalProp
             </View>
           </View>
 
-          {/* 4 param cards */}
+          {/* Score de qualité global */}
+          <View style={s.scoreContainer}>
+            <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
+              <Text style={[s.scoreValue, { color: scoreColor }]}>{aiAnalysis.quality_score}</Text>
+              <Text style={s.scoreLabel}>Score</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.scoreTitle}>Qualité globale</Text>
+              <Text style={s.scoreDesc}>
+                {aiAnalysis.quality_score >= 90 ? "Excellent ! Prêt à publier" :
+                 aiAnalysis.quality_score >= 75 ? "Très bon, quelques ajustements mineurs" :
+                 aiAnalysis.quality_score >= 60 ? "Bon, améliorations recommandées" :
+                 "Plusieurs ajustements nécessaires"}
+              </Text>
+            </View>
+          </View>
+
+          {/* 5 param cards (ajout de lighting) */}
           <View style={s.paramRow}>
             {(
               [
-                { label: "Angle",   value: data.angle, icon: "maximize-2" as const },
-                { label: "ISO",     value: data.iso,   icon: "sun"        as const },
-                { label: "Vitesse", value: data.speed, icon: "zap"        as const },
-                { label: "WB",      value: data.wb,    icon: "droplet"    as const },
+                { label: "Angle",     value: aiAnalysis.angle, icon: "maximize-2" as const },
+                { label: "ISO",       value: aiAnalysis.iso,   icon: "sun"        as const },
+                { label: "Vitesse",   value: aiAnalysis.speed, icon: "zap"        as const },
+                { label: "WB",        value: aiAnalysis.wb,    icon: "droplet"    as const },
+                { label: "Éclairage", value: aiAnalysis.lighting, icon: "sun"     as const },
               ] as const
             ).map((p) => (
               <View key={p.label} style={s.paramCard}>
@@ -131,9 +152,18 @@ function IaModal({ visible, onClose, aiInfo, data, insets, router }: IaModalProp
             ))}
           </View>
 
+          {/* Type de plan */}
+          <View style={s.shotTypeCard}>
+            <Feather name="film" size={16} color={PRIMARY} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.shotTypeLabel}>Type de plan détecté</Text>
+              <Text style={s.shotTypeValue}>{formatShotType(aiAnalysis.shot_type)}</Text>
+            </View>
+          </View>
+
           {/* DOP tips */}
           <Text style={s.sectionTitle}>Conseils du DOP IA</Text>
-          {[data.tip, data.tip2].map((tip, i) => (
+          {aiAnalysis.guidance.map((tip, i) => (
             <View key={i} style={s.tipRow}>
               <LinearGradient
                 colors={[PRIMARY, ACCENT]}
@@ -207,6 +237,10 @@ export default function CameraScreen() {
   const [platform, setPlatform] = useState("instagram");
   const [occasion, setOccasion] = useState("selfie");
 
+  // État pour l'analyse IA en temps réel
+  const [aiAnalysis, setAiAnalysis] = useState<CameraAIAnalysis>(getFallbackAnalysis());
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   const data      = OCCASION_DATA[occasion] ?? OCCASION_DATA.selfie;
   const platColor = PLATFORM_COLORS[platform] ?? PRIMARY;
   const platIcon  = (PLATFORM_ICONS[platform] ?? "camera") as keyof typeof Feather.glyphMap;
@@ -245,6 +279,43 @@ export default function CameraScreen() {
     return () => clearInterval(id);
   }, [occasion]);
 
+  // Analyse IA en temps réel avec l'API
+  useEffect(() => {
+    const analyzeFrame = async () => {
+      if (!cameraRef.current || isAnalyzing) return;
+      
+      setIsAnalyzing(true);
+      try {
+        // Capturer une frame de la caméra
+        const photo = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.3, // Basse qualité pour la vitesse
+          skipProcessing: true,
+        });
+
+        if (photo?.base64) {
+          // Analyser avec l'API Claude
+          const analysis = await analyzeCameraFrame(photo.base64);
+          if (analysis) {
+            setAiAnalysis(analysis);
+          }
+        }
+      } catch (error) {
+        console.error("[Camera AI] Error:", error);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    };
+
+    // Analyser toutes les 2 secondes
+    const interval = setInterval(analyzeFrame, 2000);
+    
+    // Première analyse immédiate
+    analyzeFrame();
+
+    return () => clearInterval(interval);
+  }, [isAnalyzing]);
+
   // Gyroscope — stabilité temps réel
   useEffect(() => {
     startStabilityMonitor((stability) => {
@@ -256,11 +327,11 @@ export default function CameraScreen() {
   }, [occasion]);
 
   const aiInfo = {
-    icon: aiScore.guidance.state === "good" ? "🟢" : aiScore.guidance.state === "medium" ? "🟡" : "🔴",
-    text: aiScore.guidance.text,
-    color: aiScore.guidance.color,
-    bg: aiScore.guidance.bg,
-    pct: `${aiScore.guidance.lightPct}%`,
+    icon: aiAnalysis.quality_score >= 75 ? "🟢" : aiAnalysis.quality_score >= 50 ? "🟡" : "🔴",
+    text: aiAnalysis.guidance[0] || aiScore.guidance.text,
+    color: getLightingColor(aiAnalysis.lighting),
+    bg: getLightingColor(aiAnalysis.lighting) + "22",
+    pct: `${aiAnalysis.lighting_pct}%`,
   };
 
   // Reload when screen focused
@@ -485,7 +556,7 @@ export default function CameraScreen() {
         visible={iaOpen}
         onClose={() => setIaOpen(false)}
         aiInfo={aiInfo}
-        data={data}
+        aiAnalysis={aiAnalysis}
         insets={insets}
         router={router}
       />
@@ -801,9 +872,11 @@ const s = StyleSheet.create({
   paramRow: {
     flexDirection: "row",
     gap: 10,
+    flexWrap: "wrap",
   },
   paramCard: {
     flex: 1,
+    minWidth: "30%",
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
     padding: 12,
@@ -821,6 +894,70 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 2,
     textAlign: "center",
+  },
+
+  // ── Score de qualité ──────────────────────────────────────────────────────
+  scoreContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    padding: 16,
+  },
+  scoreCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  scoreValue: {
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+  },
+  scoreLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+    fontFamily: "Inter_500Medium",
+    marginTop: 2,
+  },
+  scoreTitle: {
+    fontSize: 16,
+    color: "#fff",
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 4,
+  },
+  scoreDesc: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
+  },
+
+  // ── Type de plan ──────────────────────────────────────────────────────────
+  shotTypeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(77,200,232,0.08)",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: PRIMARY + "33",
+  },
+  shotTypeLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+    fontFamily: "Inter_500Medium",
+    marginBottom: 2,
+  },
+  shotTypeValue: {
+    fontSize: 15,
+    color: PRIMARY,
+    fontFamily: "Inter_600SemiBold",
   },
 
   // ── Tips ──────────────────────────────────────────────────────────────────

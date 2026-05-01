@@ -85,7 +85,7 @@ export default function SettingsScreen() {
 
         {/* Premium card */}
         <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
-          <Pressable onPress={() => router.push("/premium")}>
+          <Pressable onPress={() => router.push("/pricing")}>
             <LinearGradient
               colors={["#4DC8E8", "#7C3AED"]}
               start={{ x: 0, y: 0 }}

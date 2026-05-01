@@ -8,6 +8,7 @@ import { supportRouter } from "./routes/support.js";
 import { tipsRouter } from "./routes/tips.js";
 import { analyzeRouter } from "./routes/analyze.js";
 import { authRouter } from "./routes/auth.js";
+import { paymentRouter } from "./routes/payment.js";
 
 const app = express();
 
@@ -28,8 +29,16 @@ app.get("/", (_req, res) => {
       support: "/api/support/chat",
       tips: "/api/tips/generate",
       analyze: "/api/analyze",
+      payment: {
+        plans: "/api/payment/plans",
+        checkout: "/api/payment/create-checkout",
+        verify: "/api/payment/verify/:checkout_id",
+        webhook: "/api/payment/webhook"
+      },
       auth: {
-        tiktok: "/auth/tiktok/token"
+        tiktok: "/auth/tiktok/token",
+        facebook: "/auth/facebook/token",
+        instagram: "/auth/instagram/token"
       }
     }
   });
@@ -42,6 +51,7 @@ app.use("/api", captionsRouter);
 app.use("/api", supportRouter);
 app.use("/api", tipsRouter);
 app.use("/api", analyzeRouter);
+app.use("/api", paymentRouter); // payment routes
 app.use("/", authRouter); // auth routes: /auth/tiktok/token
 
 const PORT = Number(process.env.PORT) || 3000;
