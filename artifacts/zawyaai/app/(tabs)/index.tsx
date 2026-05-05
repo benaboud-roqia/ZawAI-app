@@ -239,7 +239,7 @@ export default function CameraScreen() {
 
   // État pour l'analyse IA en temps réel
   const [aiAnalysis, setAiAnalysis] = useState<CameraAIAnalysis>(getFallbackAnalysis());
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const isAnalyzingRef = useRef(false); // ref pour éviter la boucle infinie
 
   const data      = OCCASION_DATA[occasion] ?? OCCASION_DATA.selfie;
   const platColor = PLATFORM_COLORS[platform] ?? PRIMARY;
@@ -266,57 +266,7 @@ export default function CameraScreen() {
     return () => loop.stop();
   }, [pulseAnim]);
 
-  // Mettre à jour le score IA toutes les 3 secondes
-  useEffect(() => {
-    const update = () => {
-      const exposure = analyzeExposure();
-      const composition = analyzeComposition(occasion);
-      setAiScore(prev =>
-        computeGlobalScore(exposure, { isStable: prev.guidance.state !== "bad", tiltX: 0, tiltY: 0, recommendation: "", state: prev.guidance.state }, composition)
-      );
-    };
-    const id = setInterval(update, 3000);
-    return () => clearInterval(id);
-  }, [occasion]);
-
-  // Analyse IA en temps réel avec l'API
-  useEffect(() => {
-    const analyzeFrame = async () => {
-      if (!cameraRef.current || isAnalyzing) return;
-      
-      setIsAnalyzing(true);
-      try {
-        // Capturer une frame de la caméra
-        const photo = await cameraRef.current.takePictureAsync({
-          base64: true,
-          quality: 0.3, // Basse qualité pour la vitesse
-          skipProcessing: true,
-        });
-
-        if (photo?.base64) {
-          // Analyser avec l'API Claude
-          const analysis = await analyzeCameraFrame(photo.base64);
-          if (analysis) {
-            setAiAnalysis(analysis);
-          }
-        }
-      } catch (error) {
-        console.error("[Camera AI] Error:", error);
-      } finally {
-        setIsAnalyzing(false);
-      }
-    };
-
-    // Analyser toutes les 2 secondes
-    const interval = setInterval(analyzeFrame, 2000);
-    
-    // Première analyse immédiate
-    analyzeFrame();
-
-    return () => clearInterval(interval);
-  }, [isAnalyzing]);
-
-  // Gyroscope — stabilité temps réel
+  // Gyroscope — stabilité temps réel (complète le score local en attendant l'API)
   useEffect(() => {
     startStabilityMonitor((stability) => {
       const exposure = analyzeExposure();
@@ -326,6 +276,51 @@ export default function CameraScreen() {
     return () => stopStabilityMonitor();
   }, [occasion]);
 
+  // Analyse IA en temps réel avec l'API
+  // — ref au lieu de state pour éviter la boucle infinie
+  // — pause automatique pendant l'enregistrement vidéo
+  // — platform + occasion envoyés pour des conseils contextualisés
+  useEffect(() => {
+    const analyzeFrame = async () => {
+      if (!cameraRef.current || isAnalyzingRef.current || isRecording) return;
+
+      isAnalyzingRef.current = true;
+      try {
+        // quality: 0.5 = bon compromis vitesse/précision pour Claude Vision
+        // sans skipProcessing pour que l'image soit lisible (exposition, netteté)
+        const photo = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.5,
+        });
+
+        if (photo?.base64) {
+          // Passer platform + occasion pour des conseils adaptés au contexte
+          const analysis = await analyzeCameraFrame(photo.base64, platform, occasion);
+          if (analysis) {
+            setAiAnalysis(analysis);
+          }
+        }
+      } catch (error) {
+        console.error("[Camera AI] Error:", error);
+      } finally {
+        isAnalyzingRef.current = false;
+      }
+    };
+
+    // 3s = assez rapide pour être utile, assez lent pour ne pas surcharger
+    const interval = setInterval(analyzeFrame, 3000);
+    // Première analyse après 1.5s (laisser la caméra s'initialiser)
+    const firstTimeout = setTimeout(analyzeFrame, 1500);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(firstTimeout);
+      isAnalyzingRef.current = false;
+    };
+  }, [isRecording, platform, occasion]); // relance si plateforme ou occasion change
+
+  // Source unique de vérité : l'API Claude.
+  // aiScore (gyroscope) complète uniquement si l'API n'a pas encore répondu.
   const aiInfo = {
     icon: aiAnalysis.quality_score >= 75 ? "🟢" : aiAnalysis.quality_score >= 50 ? "🟡" : "🔴",
     text: aiAnalysis.guidance[0] || aiScore.guidance.text,
@@ -362,10 +357,14 @@ export default function CameraScreen() {
   // ── Capture handlers ──────────────────────────────────────────────────────
   async function takePhoto() {
     if (!cameraRef.current) return;
+    // Bloquer l'analyse IA pendant la capture pour éviter le conflit natif
+    isAnalyzingRef.current = true;
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
       if (photo?.uri) router.push({ pathname: "/publish" as never, params: { uri: photo.uri } });
-    } catch (_) { /* ignore */ }
+    } catch (_) { /* ignore */ } finally {
+      isAnalyzingRef.current = false;
+    }
   }
 
   async function startRecording() {

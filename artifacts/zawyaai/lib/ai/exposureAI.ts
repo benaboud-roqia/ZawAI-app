@@ -1,7 +1,8 @@
 /**
  * exposureAI.ts
- * Analyse l'exposition d'une image via son URI
- * Utilise un canvas web ou une estimation basée sur les métadonnées
+ * Fournit des paramètres d'exposition recommandés selon l'occasion.
+ * L'analyse réelle de l'image est faite par Claude Vision (cameraAI.ts).
+ * Ce module sert de fallback et de référence pour le score local.
  */
 
 export type ExposureResult = {
@@ -13,51 +14,15 @@ export type ExposureResult = {
 };
 
 /**
- * Simule l'analyse d'exposition basée sur l'heure et les conditions
- * En production : utiliser react-native-image-colors ou canvas
+ * Retourne des paramètres d'exposition neutres et corrects.
+ * Utilisé uniquement comme fallback avant la première réponse de l'API Claude.
  */
-export function analyzeExposure(hour?: number): ExposureResult {
-  const h = hour ?? new Date().getHours();
-
-  // Heure dorée : 6-9h et 17-20h
-  if ((h >= 6 && h <= 9) || (h >= 17 && h <= 20)) {
-    return {
-      exposure: "good",
-      isoSuggestion: 200,
-      shutterSuggestion: "1/120",
-      recommendation: "Lumière dorée parfaite 🌅",
-      score: 92,
-    };
-  }
-
-  // Nuit : 21h-5h
-  if (h >= 21 || h <= 5) {
-    return {
-      exposure: "dark",
-      isoSuggestion: 1600,
-      shutterSuggestion: "1/30",
-      recommendation: "Trop sombre — augmente l'ISO ou ajoute de la lumière",
-      score: 35,
-    };
-  }
-
-  // Midi : trop lumineux
-  if (h >= 11 && h <= 14) {
-    return {
-      exposure: "bright",
-      isoSuggestion: 100,
-      shutterSuggestion: "1/500",
-      recommendation: "Lumière dure — cherche de l'ombre ou utilise un diffuseur",
-      score: 65,
-    };
-  }
-
-  // Conditions normales
+export function analyzeExposure(_hour?: number): ExposureResult {
   return {
     exposure: "good",
     isoSuggestion: 400,
     shutterSuggestion: "1/120",
-    recommendation: "L'éclairage est excellent 👌",
-    score: 88,
+    recommendation: "Analyse en cours…",
+    score: 75,
   };
 }

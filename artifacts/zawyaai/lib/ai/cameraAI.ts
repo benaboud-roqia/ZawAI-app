@@ -19,16 +19,22 @@ export type CameraAIAnalysis = {
 /**
  * Analyze a camera frame using Claude Vision API
  * @param imageBase64 - Base64 encoded JPEG image
+ * @param platform    - Target platform (instagram, tiktok, etc.)
+ * @param occasion    - Content type (selfie, portrait, cooking, etc.)
  * @returns AI analysis with DOP recommendations
  */
-export async function analyzeCameraFrame(imageBase64: string): Promise<CameraAIAnalysis | null> {
+export async function analyzeCameraFrame(
+  imageBase64: string,
+  platform = "instagram",
+  occasion = "selfie",
+): Promise<CameraAIAnalysis | null> {
   try {
     const response = await fetch(`${API_URL}/api/analyze/frame`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ imageBase64 }),
+      body: JSON.stringify({ imageBase64, platform, occasion }),
     });
 
     if (!response.ok) {
